@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ImG — God Game</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>" />
+    <style>
+      html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0b0e14; }
+      #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
+      #hud {
+        position: fixed; top: 12px; left: 12px; padding: 10px 14px;
+        background: rgba(11, 14, 20, 0.82); border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px; color: #e6e9f0;
+        font: 13px/1.6 system-ui, sans-serif; pointer-events: none; user-select: none;
+        white-space: pre;
+      }
+      #help {
+        position: fixed; bottom: 12px; left: 12px; color: rgba(230, 233, 240, 0.55);
+        font: 12px/1.5 system-ui, sans-serif; pointer-events: none; user-select: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <div id="hud"></div>
+    <div id="help">Clic gauche : élever le terrain · Maj+clic : abaisser · Clic droit/milieu : déplacer · Molette : zoom · Espace : pause · 1/2/3 : vitesse</div>
+    <script type="module" src="/src/app/main.ts"></script>
+  </body>
+</html>
