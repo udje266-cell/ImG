@@ -12,6 +12,18 @@ export const HEIGHT_SCALE = 25;
 export const TERRACE_HEIGHT = LAYER_STEP * HEIGHT_SCALE;
 /** Seabed colour ramp reaches full depth at this (normalised) depth. */
 const DEPTH_RAMP = 0.15;
+
+/**
+ * World-space ground height at any point: terraced on land (flat tops half a
+ * step above the layer boundary), smooth seabed below sea level. Single
+ * source of truth shared by the mesh and by everything that must stand on
+ * the ground (showcase, future agents).
+ */
+export function groundHeightAt(terrain: TerrainGrid, wx: number, wy: number): number {
+  const h = sampleHeightBilinear(terrain, wx, wy);
+  if (h < terrain.seaLevel) return (h - terrain.seaLevel) * HEIGHT_SCALE;
+  return (landLayer(h, terrain.seaLevel) + 0.5) * TERRACE_HEIGHT;
+}
 /** Brightness multiplier of the darker stripe on odd terraces. */
 const STRIPE_SHADE = 0.95;
 /** Subtle brightening per terrace so high ground still reads as high. */
@@ -110,20 +122,18 @@ export class TerrainMesh {
     const h = sampleHeightBilinear(terrain, vx, vy);
 
     this.positions[i] = vx;
+    this.positions[i + 1] = groundHeightAt(terrain, vx, vy);
     this.positions[i + 2] = vy;
 
     let r: number;
     let g: number;
     let b: number;
     if (h < terrain.seaLevel) {
-      // Smooth seabed dipping under the water plane; sand fades to deep blue.
-      this.positions[i + 1] = (h - terrain.seaLevel) * HEIGHT_SCALE;
+      // Sand fades to deep blue with depth.
       const t = Math.min(1, (terrain.seaLevel - h) / DEPTH_RAMP);
       [r, g, b] = lerpColor(SAND_COLOR, DEEP_WATER_FLOOR, t);
     } else {
-      // Terraced land: flat tops half a step above the layer boundary.
       const layer = landLayer(h, terrain.seaLevel);
-      this.positions[i + 1] = (layer + 0.5) * TERRACE_HEIGHT;
       let light = 1 + layer * ALTITUDE_LIGHT_PER_LAYER;
       if (layer % 2 === 1) light *= STRIPE_SHADE;
       const base = blendedLandColor(terrain, vx, vy);

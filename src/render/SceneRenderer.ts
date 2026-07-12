@@ -14,6 +14,7 @@ import {
 } from "three";
 import type { Simulation } from "../sim/world/Simulation";
 import { CameraRig } from "./CameraRig";
+import { Showcase } from "./Showcase";
 import { TerrainMesh } from "./TerrainMesh";
 
 const DAY_SKY = new Color("#a9d7ef");
@@ -41,6 +42,8 @@ export class SceneRenderer {
   private readonly skyColor = new Color();
   private viewW = 1;
   private viewH = 1;
+  private showcase: Showcase | null = null;
+  private lastFrameAt: number | null = null;
 
   constructor(
     readonly canvas: HTMLCanvasElement,
@@ -117,7 +120,25 @@ export class SceneRenderer {
     this.brushRing.scale.setScalar(radiusTiles);
   }
 
+  /**
+   * Active la scène de validation des modèles (`?showcase=1`) et retourne
+   * la position (en tuiles) où pointer la caméra.
+   */
+  async enableShowcase(sim: Simulation): Promise<{ x: number; y: number }> {
+    this.showcase = new Showcase(sim.terrain);
+    this.scene.add(this.showcase.group);
+    await this.showcase.populate();
+    return this.showcase.center;
+  }
+
   render(sim: Simulation): void {
+    // Les animations d'idle du showcase suivent le temps réel du rendu.
+    const now = performance.now();
+    if (this.showcase && this.lastFrameAt !== null) {
+      this.showcase.update(Math.min(0.1, (now - this.lastFrameAt) / 1000));
+    }
+    this.lastFrameAt = now;
+
     // Sun wheels around the world with the simulation clock; noon overhead.
     const angle = (sim.clock.timeOfDay - 0.25) * Math.PI * 2;
     const radius = Math.max(sim.terrain.width, sim.terrain.height) * 1.4;

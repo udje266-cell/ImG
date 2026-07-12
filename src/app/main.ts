@@ -27,6 +27,17 @@ function boot(): void {
   const input = new InputController(canvas, renderer, sim.bus, loop);
   input.attach();
 
+  // Mode validation des modèles 3D : ?showcase=1 pose personnages et animaux
+  // du catalogue sur la terre la plus proche du centre, en plein midi.
+  if (params.has("showcase")) {
+    sim.clock.tick = 120; // midi — scène bien éclairée
+    loop.paused = true; // lumière stable pour juger les modèles (les idles tournent quand même)
+    void renderer.enableShowcase(sim).then((spot) => {
+      renderer.rig.target.set(spot.x, 0, spot.y);
+      renderer.rig.distance = 22;
+    });
+  }
+
   window.addEventListener("resize", () => renderer.resize());
   renderer.resize();
   loop.start();

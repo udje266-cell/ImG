@@ -107,7 +107,13 @@ ImG/
 - `TerrainMesh` : maillage heightmap (grille de sommets aux coins de tuiles) ; hauteur des sommets **quantifiée en terrasses** (`terraces.ts`, un cran = `LAYER_STEP`) pour le style Godus en vraie géométrie ; **couleurs par sommet** (palette pastel par biome fondue bilinéairement, fonds marins sable→bleu selon profondeur) ; flat shading, zéro texture. À réception de `terrain:modified`, seuls les sommets couverts par les chunks sales (+ bord) sont recalculés.
 - `SceneRenderer` : scène, soleil directionnel + hémisphérique pilotés par `clock.timeOfDay` (couleur du ciel incluse), plan d'eau translucide au niveau de la mer, raycasting écran→tuile pour la sculpture.
 - `CameraRig` : caméra perspective en vue divine (cible au sol, distance, azimut) ; pan/zoom/rotation ; conversions écran↔monde par raycast.
-- L'échantillonneur bilinéaire (`heightSampler.ts`) sert aux hauteurs des coins de tuiles.
+- L'échantillonneur bilinéaire (`heightSampler.ts`) sert aux hauteurs des coins de tuiles ; `groundHeightAt` (exporté par `TerrainMesh`) est la vérité unique de « poser quelque chose au sol ».
+
+### 4.5 bis Pipeline d'assets 3D (`render/modelCatalog.ts`, `render/ModelLibrary.ts`)
+- Modèles glTF binaires dans `public/models/{characters,animals}/` — **chaque ajout exige sa ligne de licence dans `public/models/LICENSES.md`** (CC0/Apache/MIT libres ; CC-BY avec attribution ; le reste arbitré).
+- `MODEL_CATALOG` (pur, testé) déclare id, URL relative, catégorie, hauteur cible en tuiles et indice de clip d'idle ; `ModelLibrary` charge, met en cache par URL, normalise l'échelle par bounding box et ancre au sol.
+- Mode `?showcase=1` : asset viewer permanent — tous les modèles du catalogue posés sur la terre la plus proche du centre, animés, à midi figé. Tout nouveau modèle se juge là avant d'entrer en jeu.
+- Perf : ce chemin (SkinnedMesh + AnimationMixer) est réservé aux petites quantités ; la phase Habitants passera à l'instanciation (voir §5).
 
 ### 4.6 Sauvegarde (`sim/save`, phase 2)
 - Snapshot versionné : `{version, seed, tick, terrainDelta, entities, resources}`.

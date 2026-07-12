@@ -37,6 +37,10 @@ app → ui → render → sim → core     (les dépendances ne remontent jamais
 
 Ces règles ne sont pas des conventions : elles sont **vérifiées par la suite de tests** (`tests/architecture.test.ts`).
 
+## Modèles 3D
+
+Personnages et animaux sont des assets libres chargés en glTF (`public/models/`, licences détaillées dans [public/models/LICENSES.md](public/models/LICENSES.md)) : pack **KayKit Adventurers** (CC0) pour les personnages, renard Khronos (CC0/CC-BY) et animaux three.js (Apache-2.0). Le mode **`?showcase=1`** affiche tout le catalogue posé dans le monde, animations d'idle jouées, pour valider chaque nouveau modèle.
+
 ## État du projet
 
 Phase 0 livrée (voir la roadmap) : monde procédural avec 12 biomes, cycle jour/nuit, saisons, terraforming temps réel qui recalcule les biomes (creusez sous le niveau de la mer : l'eau monte ; élevez un pic : la neige apparaît), et la Foi comme ressource divine consommée par les pouvoirs.
