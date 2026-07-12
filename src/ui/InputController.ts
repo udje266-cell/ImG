@@ -1,17 +1,23 @@
-import type { EventBus } from "../core/events/EventBus";
-import type { GameEvents } from "../sim/events";
 import type { SceneRenderer } from "../render/SceneRenderer";
+import type { PowerInvocation } from "../sim/powers/Power";
+import type { Simulation } from "../sim/world/Simulation";
 
 /**
- * Time control contract implemented by the app layer (dependency inversion:
- * the UI never imports from `app`).
+ * Contrats implémentés par la couche app (inversion de dépendance : l'UI
+ * n'importe jamais depuis `app`).
  */
 export interface TimeControl {
   togglePause(): void;
   setSpeed(speed: number): void;
 }
 
-export type SculptTool = "raise" | "lower";
+export interface GamePersistence {
+  save(): void;
+  load(): void;
+  hasSave(): boolean;
+}
+
+export type SculptTool = "raise" | "lower" | "flatten";
 
 /** Minimum delay between two sculpt intents while the pointer is held (ms). */
 const SCULPT_THROTTLE_MS = 90;
@@ -22,9 +28,10 @@ const SCULPT_THROTTLE_MS = 90;
  * `intent:invokePower` that the PowerSystem validates next tick.
  *
  * Touch: 1 finger = sculpt with the active tool; 2 fingers = pan + pinch zoom.
- * Mouse: left = sculpt (Shift inverts the tool), right/middle drag = pan,
- * wheel = zoom. Keys: Space pause, 1/2/3 speeds, Q/E rotate the camera.
- * The raise/lower tool buttons in the HUD work for both.
+ * Mouse: left = sculpt (Shift inverts raise/lower), right/middle drag = pan,
+ * wheel = zoom. Keys: Space pause, 1/2/3 speeds, Q/E rotate camera,
+ * S save, L load. Tool buttons in the HUD work for both; "Aplanir" stays
+ * disabled until the ProgressionSystem unlocks it.
  */
 export class InputController {
   brushRadius = 6;
@@ -40,8 +47,9 @@ export class InputController {
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly renderer: SceneRenderer,
-    private readonly bus: EventBus<GameEvents>,
+    private readonly sim: Simulation,
     private readonly time: TimeControl,
+    private readonly persistence: GamePersistence,
   ) {}
 
   attach(): void {
@@ -55,8 +63,29 @@ export class InputController {
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
+
     this.bindToolButton("tool-raise", "raise");
     this.bindToolButton("tool-lower", "lower");
+    this.bindToolButton("tool-flatten", "flatten");
+    this.setFlattenEnabled(this.sim.progression.isUnlocked("flatten"));
+    this.sim.bus.on("progression:powerUnlocked", ({ power }) => {
+      if (power === "flatten") this.setFlattenEnabled(true);
+    });
+
+    document.getElementById("btn-save")?.addEventListener("click", () => this.persistence.save());
+    const loadButton = document.getElementById("btn-load") as HTMLButtonElement | null;
+    if (loadButton) {
+      loadButton.disabled = !this.persistence.hasSave();
+      loadButton.addEventListener("click", () => this.persistence.load());
+    }
+  }
+
+  private setFlattenEnabled(enabled: boolean): void {
+    const button = document.getElementById("tool-flatten") as HTMLButtonElement | null;
+    if (!button) return;
+    button.disabled = !enabled;
+    button.textContent = enabled ? "▦" : "🔒";
+    if (!enabled && this.tool === "flatten") this.setTool("raise");
   }
 
   private bindToolButton(id: string, tool: SculptTool): void {
@@ -67,9 +96,15 @@ export class InputController {
   }
 
   private setTool(tool: SculptTool): void {
+    if (tool === "flatten" && !this.sim.progression.isUnlocked("flatten")) return;
     this.tool = tool;
-    document.getElementById("tool-raise")?.classList.toggle("active", tool === "raise");
-    document.getElementById("tool-lower")?.classList.toggle("active", tool === "lower");
+    for (const [id, t] of [
+      ["tool-raise", "raise"],
+      ["tool-lower", "lower"],
+      ["tool-flatten", "flatten"],
+    ] as const) {
+      document.getElementById(id)?.classList.toggle("active", t === tool);
+    }
   }
 
   private readonly onPointerDown = (e: PointerEvent): void => {
@@ -121,8 +156,6 @@ export class InputController {
 
   /** Two-finger pan (centroid drag) + pinch zoom (distance ratio). */
   private twoFingerGesture(): void {
-    const [a, b] = [...this.pointers.values()];
-    if (!a || !b) return;
     const distance = this.pinchDistance();
     if (this.lastPinchDistance > 0 && distance > 0) {
       this.renderer.rig.dolly(this.lastPinchDistance / distance);
@@ -162,6 +195,12 @@ export class InputController {
       case "KeyE":
         this.renderer.rig.rotate(-0.07);
         break;
+      case "KeyS":
+        this.persistence.save();
+        break;
+      case "KeyL":
+        this.persistence.load();
+        break;
       case "ShiftLeft":
       case "ShiftRight":
         this.shiftHeld = true;
@@ -181,13 +220,19 @@ export class InputController {
     if (!tile) return;
     this.lastIntentAt = now;
 
-    const lowering = this.shiftHeld ? this.tool === "raise" : this.tool === "lower";
-    this.bus.queue("intent:invokePower", {
-      power: "terraform",
-      x: tile.x,
-      y: tile.y,
-      radius: this.brushRadius,
-      direction: lowering ? -1 : 1,
-    });
+    let invocation: PowerInvocation;
+    if (this.tool === "flatten") {
+      invocation = { power: "flatten", x: tile.x, y: tile.y, radius: this.brushRadius };
+    } else {
+      const lowering = this.shiftHeld ? this.tool === "raise" : this.tool === "lower";
+      invocation = {
+        power: "terraform",
+        x: tile.x,
+        y: tile.y,
+        radius: this.brushRadius,
+        direction: lowering ? -1 : 1,
+      };
+    }
+    this.sim.bus.queue("intent:invokePower", invocation);
   }
 }

@@ -115,10 +115,17 @@ ImG/
 - Mode `?showcase=1` : asset viewer permanent — tous les modèles du catalogue posés sur la terre la plus proche du centre, animés, à midi figé. Tout nouveau modèle se juge là avant d'entrer en jeu.
 - Perf : ce chemin (SkinnedMesh + AnimationMixer) est réservé aux petites quantités ; la phase Habitants passera à l'instanciation (voir §5).
 
-### 4.6 Sauvegarde (`sim/save`, phase 2)
-- Snapshot versionné : `{version, seed, tick, terrainDelta, entities, resources}`.
-- Le terrain sauvegarde **seed + deltas** (cellules modifiées) plutôt que la grille entière.
-- Migrations par version croissante ; round-trip testé (save→load→save identique).
+### 4.6 Sauvegarde (`sim/save` — implémentée, v1)
+- Snapshot versionné `SaveDataV1` : `{version, seed, config, tick, faith, devotion, terrainDelta}`.
+- Le terrain sauvegarde **seed + deltas** : la baseline est régénérée depuis la seed (déterminisme) et seules les cellules divergentes sont stockées.
+- `serializeSimulation`/`loadSimulation` sont **pures** (JSON-sérialisable) ; la persistance (localStorage, touches S/L) vit dans `app/`. Chargement = rechargement de page avec `?load=1` (zéro démontage d'état à chaud).
+- Migrations par version croissante, rejet explicite des payloads corrompus ; round-trip, double round-trip et **déterminisme post-chargement** testés.
+- Dette identifiée pour v2 : état des streams RNG (dès que la météo/écologie consommeront du hasard en cours de partie).
+
+### 4.7 Progression divine (`sim/powers/ProgressionSystem.ts` — v1)
+- La **Dévotion** (cumul à vie de la Foi dépensée en miracles) franchit des seuils déclarés dans `POWER_UNLOCK_THRESHOLDS` → événement `progression:powerUnlocked`.
+- `PowerSystem` rejette (`reason: "locked"`) tout intent d'un pouvoir non débloqué — atomique, aucun état partiel.
+- v4-6 brancheront prières/temples/sacrifices sur `addDevotion`.
 
 ### 4.7 Agents (phase 4 — cadrage)
 - Stores SoA pour position/besoins ; index spatial (grille de hachage, cellule = 8 tuiles).

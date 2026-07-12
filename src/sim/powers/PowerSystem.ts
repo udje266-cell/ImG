@@ -39,6 +39,10 @@ export class PowerSystem {
         sim.bus.emit("power:rejected", { power: invocation.power, reason: "unknown-power" });
         continue;
       }
+      if (!sim.progression.isUnlocked(invocation.power)) {
+        sim.bus.emit("power:rejected", { power: invocation.power, reason: "locked" });
+        continue;
+      }
       const cost = power.cost(sim, invocation);
       if (!sim.faith.trySpend(cost)) {
         sim.bus.emit("power:rejected", { power: invocation.power, reason: "insufficient-faith" });

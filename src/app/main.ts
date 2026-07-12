@@ -1,18 +1,22 @@
 import { SceneRenderer } from "../render/SceneRenderer";
+import { loadSimulation, serializeSimulation, type SaveDataV1 } from "../sim/save/save";
 import { Simulation } from "../sim/world/Simulation";
 import { Hud } from "../ui/Hud";
-import { InputController } from "../ui/InputController";
+import { InputController, type GamePersistence } from "../ui/InputController";
 import { GameLoop } from "./GameLoop";
+
+const SAVE_KEY = "img:save";
 
 /**
  * Composition root: the only place where sim, render, ui and the loop are
- * wired together. Pass `?seed=<n>` in the URL to regenerate a specific world.
+ * wired together. `?seed=<n>` régénère un monde ; `?load=1` reprend la
+ * sauvegarde locale ; `?showcase=1` ouvre l'asset viewer.
  */
 function boot(): void {
   const params = new URLSearchParams(window.location.search);
   const seed = Number.parseInt(params.get("seed") ?? "1337", 10) || 1337;
 
-  const sim = new Simulation({ seed });
+  const sim = restoreOrCreate(params, seed);
 
   const canvas = document.getElementById("game") as HTMLCanvasElement;
   const hudElement = document.getElementById("hud")!;
@@ -24,8 +28,27 @@ function boot(): void {
     hud.update(sim, { paused: loop.paused, speed: loop.speed });
   });
 
-  const input = new InputController(canvas, renderer, sim.bus, loop);
+  const persistence: GamePersistence = {
+    save: () => {
+      window.localStorage.setItem(SAVE_KEY, JSON.stringify(serializeSimulation(sim)));
+      hud.flash("Partie sauvegardée");
+      (document.getElementById("btn-load") as HTMLButtonElement | null)?.removeAttribute("disabled");
+    },
+    load: () => {
+      if (!window.localStorage.getItem(SAVE_KEY)) return;
+      const url = new URL(window.location.href);
+      url.searchParams.set("load", "1");
+      window.location.href = url.toString();
+    },
+    hasSave: () => window.localStorage.getItem(SAVE_KEY) !== null,
+  };
+
+  const input = new InputController(canvas, renderer, sim, loop, persistence);
   input.attach();
+
+  sim.bus.on("progression:powerUnlocked", ({ power }) => {
+    if (power === "flatten") hud.flash("Pouvoir débloqué : Aplanir ▦");
+  });
 
   // Mode validation des modèles 3D : ?showcase=1 pose personnages et animaux
   // du catalogue sur la terre la plus proche du centre, en plein midi.
@@ -41,6 +64,21 @@ function boot(): void {
   window.addEventListener("resize", () => renderer.resize());
   renderer.resize();
   loop.start();
+}
+
+/** `?load=1` + sauvegarde locale valide → reprise ; sinon monde neuf. */
+function restoreOrCreate(params: URLSearchParams, seed: number): Simulation {
+  if (params.has("load")) {
+    const stored = window.localStorage.getItem(SAVE_KEY);
+    if (stored) {
+      try {
+        return loadSimulation(JSON.parse(stored) as SaveDataV1);
+      } catch (error) {
+        console.error("Sauvegarde illisible — nouveau monde généré.", error);
+      }
+    }
+  }
+  return new Simulation({ seed });
 }
 
 boot();

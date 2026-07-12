@@ -5,7 +5,9 @@ import { Rng } from "../../core/math/Rng";
 import { GameClock } from "../../core/time/GameClock";
 import type { GameEvents } from "../events";
 import { FaithSystem, type FaithConfig } from "../powers/FaithSystem";
+import { FlattenPower } from "../powers/FlattenPower";
 import { PowerSystem } from "../powers/PowerSystem";
+import { ProgressionSystem } from "../powers/ProgressionSystem";
 import { TerraformPower } from "../powers/TerraformPower";
 import type { TerrainGrid } from "../terrain/TerrainGrid";
 import { generateWorld } from "../worldgen/WorldGenerator";
@@ -31,19 +33,25 @@ export class Simulation {
   readonly terrain: TerrainGrid;
   readonly faith: FaithSystem;
   readonly powers: PowerSystem;
+  readonly progression: ProgressionSystem;
+  /** Config effective du monde — nécessaire à la sauvegarde (seed + deltas). */
+  readonly worldConfig: { seed: number; width: number; height: number; seaLevel: number };
   private readonly scheduler = new Scheduler<Simulation>();
 
   constructor(config: SimulationConfig) {
     this.rng = new Rng(config.seed);
-    this.terrain = generateWorld({
+    this.worldConfig = {
       seed: config.seed,
       width: config.width ?? 256,
       height: config.height ?? 256,
-      ...(config.seaLevel !== undefined ? { seaLevel: config.seaLevel } : {}),
-    });
+      seaLevel: config.seaLevel ?? 0.5,
+    };
+    this.terrain = generateWorld(this.worldConfig);
     this.faith = new FaithSystem(config.faith);
+    this.progression = new ProgressionSystem(this.bus);
     this.powers = new PowerSystem(this.bus);
     this.powers.register(new TerraformPower());
+    this.powers.register(new FlattenPower());
 
     // Tick order matters and is explicit (docs/UML.md §3).
     this.scheduler.add({ id: "powers", update: (sim) => sim.powers.step(sim) });

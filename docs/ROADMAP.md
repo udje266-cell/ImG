@@ -33,11 +33,11 @@ Le MVP (phases 0–1) doit prouver les fondations, pas empiler des features :
 - Contrôles tactiles (1 doigt = sculpter, 2 doigts = caméra) + souris/clavier desktop.
 - La sim reste inchangée — critère de réussite : 0 test modifié.
 
-### Phase 1 — Boucle divine complète
-- Pouvoirs supplémentaires : aplanir, creuser l'eau, pinceau paramétrable.
-- Sauvegarde/chargement (seed + deltas terrain + état), versionnée et testée en round-trip.
-- Contrôle du temps finalisé (pause/×1/×4/×16), overlay debug perf par système.
-- **Progression divine v1** : puissance accumulée par miracles → déblocage de pouvoirs (cahier des charges §7).
+### Phase 1 — Boucle divine complète ✅ (livrée)
+- Pouvoir **Aplanir** (nivelle vers le centre du pinceau), déverrouillé par la Dévotion.
+- **Sauvegarde/chargement v1** (seed + deltas terrain + horloge/foi/dévotion), versionnée, round-trip et déterminisme post-chargement testés ; persistance localStorage (S/L + boutons 💾/📂).
+- **Progression divine v1** : la Foi dépensée en miracles nourrit la Dévotion ; seuils → `progression:powerUnlocked` (cahier des charges §7).
+- Reporté : pinceau paramétrable (phase 2), overlay debug perf (phase 2 — obligatoire avant la météo).
 
 ### Phase 1.5 — Empaquetage Android (Capacitor)
 - Projet Capacitor, build APK, cibles de perf sur appareil milieu de gamme (60 fps terrain, 30 fps mini).

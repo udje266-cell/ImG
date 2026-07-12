@@ -140,8 +140,21 @@ classDiagram
 
     class TerraformPower {
         +id = "terraform"
-        +cost(params) number
+        +cost(sim, params) number
         +apply(sim, params) void
+    }
+
+    class FlattenPower {
+        +id = "flatten"
+        +cost(sim, params) number
+        +apply(sim, params) void
+    }
+
+    class ProgressionSystem {
+        +devotion: number
+        +isUnlocked(power) boolean
+        +addDevotion(amount) void
+        +restoreDevotion(value) void
     }
 
     Simulation *-- GameClock
@@ -155,8 +168,13 @@ classDiagram
     WorldGenerator ..> Rng : utilise
     PowerSystem o-- Power
     Power <|.. TerraformPower
+    Power <|.. FlattenPower
     TerraformPower ..> TerrainGrid : modifie
+    FlattenPower ..> TerrainGrid : modifie
     PowerSystem ..> FaithSystem : débite
+    PowerSystem ..> ProgressionSystem : vérifie déblocage
+    ProgressionSystem ..> EventBus : écoute power_invoked
+    Simulation *-- ProgressionSystem
 ```
 
 ## 3. Diagramme de séquence — un tick de simulation

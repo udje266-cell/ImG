@@ -26,6 +26,8 @@
         color: #e6e9f0; cursor: pointer; touch-action: manipulation;
       }
       #toolbar button.active { border-color: #ffd66e; background: rgba(80, 62, 18, 0.9); }
+      #toolbar button:disabled { opacity: 0.45; cursor: not-allowed; }
+      #toolbar button.spaced { margin-top: 14px; }
       #help {
         position: fixed; bottom: calc(12px + env(safe-area-inset-bottom)); left: 12px;
         color: rgba(230, 233, 240, 0.55);
@@ -40,8 +42,11 @@
     <div id="toolbar">
       <button id="tool-raise" title="Élever le terrain" aria-label="Élever">⛰️</button>
       <button id="tool-lower" title="Abaisser le terrain" aria-label="Abaisser">🕳️</button>
+      <button id="tool-flatten" title="Aplanir (se débloque avec la Dévotion)" aria-label="Aplanir" disabled>🔒</button>
+      <button id="btn-save" class="spaced" title="Sauvegarder (S)" aria-label="Sauvegarder">💾</button>
+      <button id="btn-load" title="Charger (L)" aria-label="Charger" disabled>📂</button>
     </div>
-    <div id="help">1 doigt / clic gauche : sculpter (Maj : inverser) · 2 doigts / clic droit : caméra · Molette / pincer : zoom · Q/E : pivoter · Espace : pause · 1/2/3 : vitesse</div>
+    <div id="help">1 doigt / clic gauche : sculpter (Maj : inverser) · 2 doigts / clic droit : caméra · Molette / pincer : zoom · Q/E : pivoter · Espace : pause · 1/2/3 : vitesse · S/L : sauver/charger</div>
     <script type="module" src="/src/app/main.ts"></script>
   </body>
 </html>

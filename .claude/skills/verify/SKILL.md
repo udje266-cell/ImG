@@ -34,6 +34,8 @@ Flux qui couvrent le MVP :
 - **Caméra** : molette = zoom, `KeyQ`/`KeyE` = rotation (l'angle de vue change), drag droit = pan.
 - **Temps** : `Digit3` = ×16 (1 jour ≈ 1,5 s), la 2e ligne du HUD avance ; `Space` = pause, la ligne se fige et la sculpture ne s'applique plus (ticks gelés — attendu).
 - **Jour/nuit** : le soleil/ciel suivent l'heure — comparer midi (clair) et ~19:00 (crépuscule orangé sombre).
+- **Progression** : `#tool-flatten` est `disabled` au boot ; sculpter ~15 intents (dévotion ≥ 120) le déverrouille + flash HUD.
+- **Sauvegarde** : `KeyS` → flash « Partie sauvegardée » + `#btn-load` s'active ; `KeyL` recharge la page avec `?load=1` — le HUD doit conserver la Dévotion et le terrain sculpté doit réapparaître. Sauvegarde corrompue dans localStorage (`img:save`) → monde neuf + console.error volontaire (seul cas d'erreur console admis).
 
 ## Pièges connus
 

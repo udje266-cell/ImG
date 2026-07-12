@@ -16,8 +16,16 @@ export interface TerraformInvocation {
   direction: 1 | -1;
 }
 
+/** Levels the land inside the brush towards the height at its centre. */
+export interface FlattenInvocation {
+  power: "flatten";
+  x: number;
+  y: number;
+  radius: number;
+}
+
 /** Union of all power invocations — grows as new powers are added. */
-export type PowerInvocation = TerraformInvocation;
+export type PowerInvocation = TerraformInvocation | FlattenInvocation;
 
 export type PowerId = PowerInvocation["power"];
 

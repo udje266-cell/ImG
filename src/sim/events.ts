@@ -9,7 +9,7 @@ import type { PowerId, PowerInvocation } from "./powers/Power";
  * - `intent:*` for player intents published by the UI; the simulation is the
  *   only layer allowed to act on them.
  */
-export type PowerRejectionReason = "insufficient-faith" | "unknown-power";
+export type PowerRejectionReason = "insufficient-faith" | "unknown-power" | "locked";
 
 export type GameEvents = {
   "time:dayStarted": { day: number };
@@ -20,4 +20,6 @@ export type GameEvents = {
   "intent:invokePower": PowerInvocation;
   "power:invoked": { power: PowerId; cost: number };
   "power:rejected": { power: PowerId; reason: PowerRejectionReason };
+  /** Un seuil de dévotion vient d'être franchi (cahier des charges §7). */
+  "progression:powerUnlocked": { power: PowerId; devotion: number };
 };
