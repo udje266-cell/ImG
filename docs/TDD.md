@@ -12,8 +12,9 @@
 | Langage | TypeScript (strict) | typage fort, refactoring sûr, écosystème |
 | Build | Vite | démarrage instantané, HMR, build optimisé |
 | Tests | Vitest | rapide, API Jest, natif Vite |
-| Rendu | Canvas 2D (chunks pré-rendus) → WebGL si besoin | suffisant pour le MVP, remplaçable (couche isolée) |
-| Dépendances runtime | **zéro** | déterminisme, maîtrise totale, pas de dette externe |
+| Rendu | **Three.js (WebGL), 3D low poly** — voir ADR 0002 | cahier des charges §4/§10 ; cantonné à `render/` |
+| Mobile | **Capacitor** (Android prioritaire, puis iOS) — ADR 0002 | cahier des charges §11 |
+| Dépendances runtime | **une seule : `three`** | déterminisme et maîtrise ; la sim reste sans dépendance |
 
 **Convention** : documentation en français, code/identifiants/messages de commit en anglais.
 
@@ -102,10 +103,11 @@ ImG/
 - `FaithSystem` : réserve, plafond, régénération (MVP : régénération de base ; branchée sur les croyants en phase 6).
 - `Power` (interface) : `id`, `cost(params)`, `apply(sim, params)`. Registre de pouvoirs. L'UI publie `intent:invokePower` ; `PowerSystem` valide (Foi suffisante) puis exécute dans le tick — l'UI ne touche jamais la sim.
 
-### 4.5 Rendu (`render`)
-- `Camera2D` : position monde + zoom ; conversions écran↔monde.
-- `TerrainRenderer` : un canvas offscreen **par chunk**, redessiné uniquement si dirty ; blit visible-only vers le canvas principal. Style *Godus* (GDD §6) : le relief est échantillonné en **bilinéaire à 4 px/tuile** (`heightSampler.ts`) puis quantifié en terrasses (`terraces.ts`) ; les courbes de niveau sont tracées là où la hauteur croise une frontière de strate, avec une épaisseur proportionnelle au gradient local (aucune ligne parasite sur les plateaux) ; couleurs de biomes fondues bilinéairement, eau en bandes de profondeur plates avec liseré d'écume côtier. Un chunk modifié invalide aussi ses 4 voisins (l'échantillonnage lit jusqu'à une tuile au-delà de la frontière).
-- `DayNightOverlay` : teinte multipliée selon `timeOfDay` + saison.
+### 4.5 Rendu 3D (`render`, Three.js — ADR 0002)
+- `TerrainMesh` : maillage heightmap (grille de sommets aux coins de tuiles) ; hauteur des sommets **quantifiée en terrasses** (`terraces.ts`, un cran = `LAYER_STEP`) pour le style Godus en vraie géométrie ; **couleurs par sommet** (palette pastel par biome fondue bilinéairement, fonds marins sable→bleu selon profondeur) ; flat shading, zéro texture. À réception de `terrain:modified`, seuls les sommets couverts par les chunks sales (+ bord) sont recalculés.
+- `SceneRenderer` : scène, soleil directionnel + hémisphérique pilotés par `clock.timeOfDay` (couleur du ciel incluse), plan d'eau translucide au niveau de la mer, raycasting écran→tuile pour la sculpture.
+- `CameraRig` : caméra perspective en vue divine (cible au sol, distance, azimut) ; pan/zoom/rotation ; conversions écran↔monde par raycast.
+- L'échantillonneur bilinéaire (`heightSampler.ts`) sert aux hauteurs des coins de tuiles.
 
 ### 4.6 Sauvegarde (`sim/save`, phase 2)
 - Snapshot versionné : `{version, seed, tick, terrainDelta, entities, resources}`.

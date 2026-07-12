@@ -28,10 +28,20 @@ Le MVP (phases 0–1) doit prouver les fondations, pas empiler des features :
 - `render`/`ui` : rendu par chunks avec hillshading, overlay jour/nuit, caméra, HUD Foi/date, souris (pan/zoom/sculpter).
 - Tests : unitaires + test d'architecture (pureté de `sim`).
 
+### Phase 0.5 — Passage 3D + contrôles tactiles ✅ (livrée)
+- Rendu Three.js low poly terrassé (ADR 0002), soleil jour/nuit, plan d'eau.
+- Contrôles tactiles (1 doigt = sculpter, 2 doigts = caméra) + souris/clavier desktop.
+- La sim reste inchangée — critère de réussite : 0 test modifié.
+
 ### Phase 1 — Boucle divine complète
 - Pouvoirs supplémentaires : aplanir, creuser l'eau, pinceau paramétrable.
 - Sauvegarde/chargement (seed + deltas terrain + état), versionnée et testée en round-trip.
 - Contrôle du temps finalisé (pause/×1/×4/×16), overlay debug perf par système.
+- **Progression divine v1** : puissance accumulée par miracles → déblocage de pouvoirs (cahier des charges §7).
+
+### Phase 1.5 — Empaquetage Android (Capacitor)
+- Projet Capacitor, build APK, cibles de perf sur appareil milieu de gamme (60 fps terrain, 30 fps mini).
+- Adaptation UI (safe areas, tailles tactiles), puis iOS après validation Android.
 
 ### Phase 2 — Monde dynamique
 - Météo cellulaire (nuages, pluie, neige) branchée sur l'humidité du sol.
@@ -40,6 +50,7 @@ Le MVP (phases 0–1) doit prouver les fondations, pas empiler des features :
 ### Phase 3 — Écologie
 - Flore : croissance/essaimage dépendant humidité/saison. Faune : herbivores/prédateurs, reproduction, migration.
 - Ressources renouvelables/finies ; dégradation par surexploitation.
+- Pouvoirs : faire pousser une forêt, **créer une espèce animale** (régime, habitat, tempérament — cahier des charges §3).
 
 ### Phase 4 — Les habitants (jalon critique de perf)
 - Agents : besoins, Utility AI, perception, mémoire ; stores SoA + index spatial ; pathfinding hiérarchique budgété.
@@ -50,10 +61,11 @@ Le MVP (phases 0–1) doit prouver les fondations, pas empiler des features :
 - Villages, professions, stocks, production/consommation, prix émergents, commerce inter-villages.
 
 ### Phase 6 — Religions dynamiques
-- Témoins de miracles → récits → dogmes ; ferveur, prêtres, temples, schismes, conversions ; dieux rivaux simulés.
+- **Moteur d'interprétation** : les peuples ne voient jamais la divinité, ils interprètent les événements (pluie = bénédiction, volcan = colère, éclipse = présage — cahier des charges §6) selon leur culture ; mémoire des interventions transmise en récits.
+- Témoins de miracles → récits → dogmes ; ferveur, prêtres, temples, sacrifices, schismes, conversions ; dieux rivaux simulés.
 
 ### Phase 7 — Technologies
-- Découverte par la pratique, diffusion par contact, ères (pierre → bronze → fer → antiquité).
+- Découverte par la pratique, diffusion par contact ; **8 ères** : pierre → bronze → fer → moyen âge → renaissance → industrielle → moderne → futur (cahier des charges §9).
 
 ### Phase 8 — Diplomatie & guerre
 - Royaumes, opinions, traités, casus belli, guerres avec moral et logistique simplifiée.

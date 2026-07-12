@@ -1,6 +1,6 @@
 # ImG — « I'm God »
 
-Un **god game** original : le joueur incarne une divinité qui influence — sans jamais le contrôler — un monde vivant, procédural et entièrement terraformable, peuplé d'habitants autonomes qui construisent, commercent, croient et se font la guerre.
+Un **god game 3D** original : le joueur incarne une divinité qui influence — sans jamais le contrôler — un monde vivant, procédural et entièrement terraformable, peuplé d'habitants autonomes qui construisent, commercent, croient et se font la guerre. Style low poly stylisé, pensé **mobile d'abord** (Android puis iOS via Capacitor). Référence produit : [docs/CAHIER_DES_CHARGES.md](docs/CAHIER_DES_CHARGES.md).
 
 ## Démarrage
 
@@ -11,7 +11,8 @@ npm test           # suite de tests (unitaires + intégration + architecture)
 npm run build      # typecheck strict + build de production
 ```
 
-**Contrôles** : clic gauche = élever le terrain · Maj+clic = abaisser · clic droit/milieu = déplacer la caméra · molette = zoom · Espace = pause · 1/2/3 = vitesse ×1/×4/×16.
+**Contrôles tactiles** : 1 doigt = sculpter (outil ⛰️/🕳️ dans la barre) · 2 doigts = déplacer + pincer pour zoomer.
+**Contrôles souris/clavier** : clic gauche = sculpter (Maj = inverser) · clic droit/milieu = caméra · molette = zoom · Q/E = pivoter · Espace = pause · 1/2/3 = vitesse ×1/×4/×16.
 
 ## Documentation
 
@@ -30,9 +31,9 @@ app → ui → render → sim → core     (les dépendances ne remontent jamais
 ```
 
 - **`core`** : noyau générique — EventBus typé, RNG déterministe, ECS, horloge de jeu.
-- **`sim`** : toute la logique métier, 100 % pure (zéro API navigateur), déterministe, testable headless.
-- **`render`** : lecture seule de la sim, rendu Canvas par chunks avec dirty tracking.
-- **`ui`** : traduit les entrées en *intents* publiés sur l'Event Bus — jamais d'accès direct à la sim.
+- **`sim`** : toute la logique métier, 100 % pure (zéro API navigateur, zéro dépendance), déterministe, testable headless.
+- **`render`** : lecture seule de la sim — rendu 3D low poly (Three.js) : maillage terrassé à couleurs par sommet, soleil jour/nuit, eau translucide (ADR 0002).
+- **`ui`** : traduit les entrées (tactile + souris) en *intents* publiés sur l'Event Bus — jamais d'accès direct à la sim.
 
 Ces règles ne sont pas des conventions : elles sont **vérifiées par la suite de tests** (`tests/architecture.test.ts`).
 

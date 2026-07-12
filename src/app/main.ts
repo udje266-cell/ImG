@@ -1,4 +1,4 @@
-import { Renderer } from "../render/Renderer";
+import { SceneRenderer } from "../render/SceneRenderer";
 import { Simulation } from "../sim/world/Simulation";
 import { Hud } from "../ui/Hud";
 import { InputController } from "../ui/InputController";
@@ -17,7 +17,7 @@ function boot(): void {
   const canvas = document.getElementById("game") as HTMLCanvasElement;
   const hudElement = document.getElementById("hud")!;
 
-  const renderer = new Renderer(canvas, sim);
+  const renderer = new SceneRenderer(canvas, sim);
   const hud = new Hud(hudElement);
   const loop = new GameLoop(sim, () => {
     renderer.render(sim);

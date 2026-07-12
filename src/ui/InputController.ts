@@ -1,6 +1,6 @@
 import type { EventBus } from "../core/events/EventBus";
 import type { GameEvents } from "../sim/events";
-import type { Renderer } from "../render/Renderer";
+import type { SceneRenderer } from "../render/SceneRenderer";
 
 /**
  * Time control contract implemented by the app layer (dependency inversion:
@@ -11,30 +11,35 @@ export interface TimeControl {
   setSpeed(speed: number): void;
 }
 
-/** Minimum delay between two sculpt intents while the mouse is held (ms). */
+export type SculptTool = "raise" | "lower";
+
+/** Minimum delay between two sculpt intents while the pointer is held (ms). */
 const SCULPT_THROTTLE_MS = 90;
 
 /**
- * Translates raw browser input into camera moves and `intent:invokePower`
- * events. Never touches the simulation directly (docs/TDD.md §2.1):
- * sculpting only QUEUES an intent that the PowerSystem validates next tick.
+ * Touch-first input (cahier des charges §11 — Android d'abord), mouse as a
+ * superset. Never touches the simulation directly: sculpting only QUEUES an
+ * `intent:invokePower` that the PowerSystem validates next tick.
  *
- * Bindings: left drag = raise terrain, Shift+left = lower, right/middle
- * drag = pan, wheel = zoom, Space = pause, 1/2/3 = speed x1/x4/x16.
+ * Touch: 1 finger = sculpt with the active tool; 2 fingers = pan + pinch zoom.
+ * Mouse: left = sculpt (Shift inverts the tool), right/middle drag = pan,
+ * wheel = zoom. Keys: Space pause, 1/2/3 speeds, Q/E rotate the camera.
+ * The raise/lower tool buttons in the HUD work for both.
  */
 export class InputController {
   brushRadius = 6;
+  tool: SculptTool = "raise";
 
-  private isPanning = false;
-  private isSculpting = false;
-  private lastPointerX = 0;
-  private lastPointerY = 0;
-  private lowering = false;
+  private readonly pointers = new Map<number, { x: number; y: number }>();
+  private panning = false;
+  private sculpting = false;
+  private shiftHeld = false;
   private lastIntentAt = 0;
+  private lastPinchDistance = 0;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
-    private readonly renderer: Renderer,
+    private readonly renderer: SceneRenderer,
     private readonly bus: EventBus<GameEvents>,
     private readonly time: TimeControl,
   ) {}
@@ -43,51 +48,97 @@ export class InputController {
     const canvas = this.canvas;
     canvas.addEventListener("pointerdown", this.onPointerDown);
     canvas.addEventListener("pointermove", this.onPointerMove);
-    canvas.addEventListener("pointerup", this.onPointerUp);
-    canvas.addEventListener("pointerleave", this.onPointerUp);
+    canvas.addEventListener("pointerup", this.onPointerEnd);
+    canvas.addEventListener("pointercancel", this.onPointerEnd);
+    canvas.addEventListener("pointerleave", this.onPointerEnd);
     canvas.addEventListener("wheel", this.onWheel, { passive: false });
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     window.addEventListener("keydown", this.onKeyDown);
+    window.addEventListener("keyup", this.onKeyUp);
+    this.bindToolButton("tool-raise", "raise");
+    this.bindToolButton("tool-lower", "lower");
+  }
+
+  private bindToolButton(id: string, tool: SculptTool): void {
+    const button = document.getElementById(id);
+    if (!button) return;
+    button.addEventListener("click", () => this.setTool(tool));
+    if (tool === this.tool) button.classList.add("active");
+  }
+
+  private setTool(tool: SculptTool): void {
+    this.tool = tool;
+    document.getElementById("tool-raise")?.classList.toggle("active", tool === "raise");
+    document.getElementById("tool-lower")?.classList.toggle("active", tool === "lower");
   }
 
   private readonly onPointerDown = (e: PointerEvent): void => {
     this.canvas.setPointerCapture(e.pointerId);
-    this.lastPointerX = e.offsetX;
-    this.lastPointerY = e.offsetY;
-    if (e.button === 0) {
-      this.isSculpting = true;
-      this.lowering = e.shiftKey;
-      this.sculptAt(e.offsetX, e.offsetY);
-    } else {
-      this.isPanning = true;
+    this.pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+
+    if (this.pointers.size === 2) {
+      // Second finger down: switch from sculpting to camera gestures.
+      this.sculpting = false;
+      this.panning = false;
+      this.lastPinchDistance = this.pinchDistance();
+      return;
     }
+    if (e.pointerType === "mouse" && e.button !== 0) {
+      this.panning = true;
+      return;
+    }
+    this.sculpting = true;
+    this.shiftHeld = e.shiftKey;
+    this.sculptAt(e.offsetX, e.offsetY);
   };
 
   private readonly onPointerMove = (e: PointerEvent): void => {
-    this.renderer.brushCursor = {
-      screenX: e.offsetX,
-      screenY: e.offsetY,
-      radiusTiles: this.brushRadius,
-    };
-    if (this.isPanning) {
-      this.renderer.camera.panPixels(e.offsetX - this.lastPointerX, e.offsetY - this.lastPointerY);
-    } else if (this.isSculpting) {
-      this.lowering = e.shiftKey;
+    const previous = this.pointers.get(e.pointerId);
+    this.pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
+    this.renderer.updateBrushIndicator(e.offsetX, e.offsetY, this.brushRadius);
+
+    if (this.pointers.size === 2) {
+      this.twoFingerGesture();
+      return;
+    }
+    if (!previous) return;
+    if (this.panning) {
+      this.renderer.rig.panByScreen(e.offsetX - previous.x, e.offsetY - previous.y, this.renderer.height);
+    } else if (this.sculpting) {
+      this.shiftHeld = e.shiftKey;
       this.sculptAt(e.offsetX, e.offsetY);
     }
-    this.lastPointerX = e.offsetX;
-    this.lastPointerY = e.offsetY;
   };
 
-  private readonly onPointerUp = (): void => {
-    this.isPanning = false;
-    this.isSculpting = false;
+  private readonly onPointerEnd = (e: PointerEvent): void => {
+    this.pointers.delete(e.pointerId);
+    if (this.pointers.size < 2) this.lastPinchDistance = 0;
+    if (this.pointers.size === 0) {
+      this.panning = false;
+      this.sculpting = false;
+    }
   };
+
+  /** Two-finger pan (centroid drag) + pinch zoom (distance ratio). */
+  private twoFingerGesture(): void {
+    const [a, b] = [...this.pointers.values()];
+    if (!a || !b) return;
+    const distance = this.pinchDistance();
+    if (this.lastPinchDistance > 0 && distance > 0) {
+      this.renderer.rig.dolly(this.lastPinchDistance / distance);
+    }
+    this.lastPinchDistance = distance;
+  }
+
+  private pinchDistance(): number {
+    const [a, b] = [...this.pointers.values()];
+    if (!a || !b) return 0;
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
 
   private readonly onWheel = (e: WheelEvent): void => {
     e.preventDefault();
-    const factor = Math.pow(1.0015, -e.deltaY);
-    this.renderer.camera.zoomAt(e.offsetX, e.offsetY, factor, this.renderer.width, this.renderer.height);
+    this.renderer.rig.dolly(Math.pow(1.0015, e.deltaY));
   };
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
@@ -105,26 +156,38 @@ export class InputController {
       case "Digit3":
         this.time.setSpeed(16);
         break;
+      case "KeyQ":
+        this.renderer.rig.rotate(0.07);
+        break;
+      case "KeyE":
+        this.renderer.rig.rotate(-0.07);
+        break;
+      case "ShiftLeft":
+      case "ShiftRight":
+        this.shiftHeld = true;
+        break;
     }
+  };
+
+  private readonly onKeyUp = (e: KeyboardEvent): void => {
+    if (e.code === "ShiftLeft" || e.code === "ShiftRight") this.shiftHeld = false;
   };
 
   private sculptAt(screenX: number, screenY: number): void {
     const now = performance.now();
     if (now - this.lastIntentAt < SCULPT_THROTTLE_MS) return;
+
+    const tile = this.renderer.pickTile(screenX, screenY);
+    if (!tile) return;
     this.lastIntentAt = now;
 
-    const world = this.renderer.camera.screenToWorld(
-      screenX,
-      screenY,
-      this.renderer.width,
-      this.renderer.height,
-    );
+    const lowering = this.shiftHeld ? this.tool === "raise" : this.tool === "lower";
     this.bus.queue("intent:invokePower", {
       power: "terraform",
-      x: Math.round(world.x),
-      y: Math.round(world.y),
+      x: tile.x,
+      y: tile.y,
       radius: this.brushRadius,
-      direction: this.lowering ? -1 : 1,
+      direction: lowering ? -1 : 1,
     });
   }
 }

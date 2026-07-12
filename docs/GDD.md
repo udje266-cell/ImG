@@ -1,15 +1,16 @@
 # ImG — Game Design Document (GDD)
 
 > **Titre de travail** : *ImG* (« I'm God »)
-> **Genre** : God Game / simulation de monde vivant
-> **Plateforme** : Web (navigateur), portable vers desktop (Electron/Tauri) ultérieurement
-> **Version du document** : 1.0 — voir l'historique git pour les révisions
+> **Genre** : God Game 3D / simulation de monde vivant
+> **Plateformes** : **Android (priorité), puis iOS** (via Capacitor) ; le web sert de cible de développement et de démo
+> **Référence produit** : `CAHIER_DES_CHARGES.md` — ce GDD en est la déclinaison détaillée
+> **Version du document** : 2.0 — voir l'historique git pour les révisions
 
 ---
 
 ## 1. Vision
 
-Le joueur incarne une **divinité** qui influence un monde vivant **sans jamais le contrôler directement**. Le monde existe par lui-même : ses habitants naissent, décident, construisent, commercent, croient, se font la guerre et meurent — que le joueur intervienne ou non.
+Le joueur incarne une **divinité** qui influence un monde vivant **en 3D**, **sans jamais le contrôler directement**. Le monde existe par lui-même : ses habitants naissent, décident, construisent, commercent, croient, se font la guerre et meurent — que le joueur intervienne ou non. Le jeu n'a **pas de fin imposée** : chaque partie génère une histoire différente, et **observer sans intervenir** est un style de jeu à part entière.
 
 **Pilier n°1 — Influence, pas contrôle.** Aucun ordre direct. Le joueur agit sur l'environnement (terraforming, météo, miracles) et sur les esprits (inspiration, visions), jamais sur les actes.
 
@@ -84,11 +85,15 @@ Classés par (température × humidité × altitude) :
 ## 4. Les habitants
 
 ### 4.1 IA autonome
-Chaque habitant est un **agent** doté de :
+Chaque habitant est un **agent** doté de (cahier des charges §8) :
+- **Personnalité** : traits (courage, piété, curiosité, sociabilité…) qui pondèrent toutes les décisions.
+- **Mémoire** : connaissance partielle du monde, rumeurs, et surtout **souvenir des interventions du joueur** — un miracle vu enfant façonne le croyant adulte ; les souvenirs se transmettent (déformés) en récits.
+- **Émotions** : joie, peur, colère, deuil, émerveillement — modulent les utilités à court terme (un agent terrifié fuit même si son plan disait « récolter »).
 - **Besoins** (faim, soif, sommeil, sécurité, social, spirituel) — modèle utilitaire.
+- **Objectifs** : buts à long terme émergents (fonder une famille, devenir prêtre, s'enrichir).
+- **Famille** : filiation, foyers, héritage — support de la transmission des croyances et des métiers.
+- **Profession** : émergente selon les besoins de la communauté.
 - **Décision** : *Utility AI* hiérarchique (choix d'objectif) + arbres de comportement (exécution). Aucun agent n'est contrôlable par le joueur.
-- **Mémoire & perception** : connaissance partielle du monde, rumeurs, souvenirs des miracles.
-- **Traits** : courage, piété, curiosité, sociabilité — influencent les utilités.
 
 ### 4.2 Société
 - **Foyers → villages → cités → royaumes** : structures émergentes fondées sur la démographie et les ressources.
@@ -97,10 +102,20 @@ Chaque habitant est un **agent** doté de :
 
 ### 4.3 Technologies
 - Arbre technologique **découvert, pas acheté** : les techs émergent de la pratique (pêcher assez → navigation) et se **diffusent** par contact (commerce, migration, guerre).
-- Ères : Paléolithique → Néolithique → Âge du bronze → Âge du fer → Antiquité classique → … (extensible).
+- Ères (cahier des charges §9) : **âge de pierre → âge du bronze → âge du fer → moyen âge → renaissance → révolution industrielle → époque moderne → futur.**
 
 ### 4.4 Religions dynamiques
-- Les croyances **émergent** : un miracle observé crée des témoins, les témoins des récits, les récits des dogmes.
+- **Les habitants ne voient jamais la divinité** : ils n'ont accès qu'aux événements, qu'ils **interprètent** selon leur culture et le contexte (cahier des charges §6) :
+
+  | Événement | Interprétation typique |
+  |---|---|
+  | Pluie après sécheresse | bénédiction |
+  | Volcan, séisme | colère divine |
+  | Éclipse | présage (bon ou funeste selon les dogmes) |
+  | Miracle observé | foi renforcée, témoins → récits |
+  | Catastrophe sur un rival | élection divine du peuple épargné |
+
+- Les croyances **émergent** : un miracle observé crée des témoins, les témoins des récits, les récits des dogmes. La même intervention peut donc engendrer des dogmes opposés dans deux cultures.
 - Chaque religion a : divinité(s) visée(s) (dont le joueur), dogmes générés (interdits alimentaires, rites, jours sacrés), clergé, lieux saints, ferveur.
 - **Schismes et conversions** dynamiques ; les religions rivales peuvent adorer des dieux imaginaires (non-joueurs) simulés.
 
@@ -112,19 +127,20 @@ Chaque habitant est un **agent** doté de :
 
 ## 5. Le joueur divin
 
-### 5.1 La Foi (ressource)
-- Générée en continu par les croyants : `foi/s = Σ (ferveur × population)` — modulée par prières, temples, fêtes religieuses.
+### 5.1 La Foi (ressource) et la progression divine
+- Générée en continu par les croyants : `foi/s = Σ (ferveur × population)` — amplifiée par les **prières**, les **temples**, les **sacrifices** et les **fêtes religieuses**.
 - Dépensée pour tout pouvoir. Réserve plafonnée (extensible par temples/reliques).
+- **Progression** (cahier des charges §7) : la puissance divine accumulée au fil des miracles accomplis **débloque de nouveaux pouvoirs** — le panthéon de départ ne connaît que le terraforming ; la pluie, les bénédictions, la création d'espèces puis les catastrophes s'ouvrent avec la dévotion des peuples.
 - **Perdre toute crédibilité** (miracles ratés, catastrophes attribuées au joueur) fait chuter la ferveur → spirale de déclin possible.
 
 ### 5.2 Pouvoirs divins (extraits)
 | Catégorie | Pouvoirs | Coût |
 |---|---|---|
-| Terraforming | élever/abaisser, aplanir, creuser l'eau | faible→fort selon volume |
-| Météo | pluie, éclaircie, orage, foudre | moyen |
-| Vie | bénir récoltes, soigner, fertilité, faire pousser une forêt | moyen |
+| Terraforming | élever/abaisser (montagnes, vallées, falaises), aplanir, creuser rivières/lacs/océans | faible→fort selon volume |
+| Climat & météo | pluie, éclaircie, orage, foudre, infléchir le climat local | moyen |
+| Vie | faire pousser forêts et plantes, **créer des espèces animales**, bénir récoltes, soigner, fertilité | moyen→fort |
 | Inspiration | vision (pousse un agent à prier/migrer/bâtir), révélation technologique | fort |
-| Colère | séisme, éruption, peste, malédiction | très fort, risque de terreur |
+| Colère | séisme, éruption volcanique, peste, malédiction | très fort, risque de terreur |
 
 Chaque pouvoir a un **impact de croyance** : les témoins deviennent croyants, sceptiques ou terrifiés selon le contexte.
 
@@ -136,18 +152,17 @@ Chaque pouvoir a un **impact de croyance** : les témoins deviennent croyants, s
 ---
 
 ## 6. Direction artistique & audio (cadrage)
-Référence assumée : **le style de *Godus*** (Populous-like de 22cans), transposé en 2D vue du dessus avec des assets 100 % originaux :
-- **Terrain stratifié en terrasses** : les hauteurs continues de la simulation sont quantifiées en strates visuelles discrètes, comme des couches de papier découpé empilées ; chaque coup de pinceau divin ajoute/retire environ une strate.
-- **Aplats pastel, zéro texture** : une couleur plate par biome, rayures alternées subtiles entre strates paires/impaires pour que chaque terrasse se lise individuellement, léger éclaircissement avec l'altitude.
-- **Liserés de contour** : couture sombre là où deux strates se rencontrent — c'est elle qui dessine les courbes de niveau caractéristiques.
-- **Eau en bandes plates** : turquoise clair → bleu profond par paliers de profondeur (pas de dégradé), avec une **ligne d'écume claire** le long des côtes.
-- Teinte globale jour/nuit et saisonnière par-dessus.
+**3D stylisée low poly haut de gamme, colorée et intemporelle** (cahier des charges §10), avec la référence *Godus* assumée pour le langage du terrain — assets 100 % originaux :
+- **Terrain 3D en terrasses** : les hauteurs continues de la simulation sont quantifiées en strates géométriques réelles dans le maillage — le relief se lit comme des couches empilées, et chaque geste divin ajoute/retire environ une strate.
+- **Low poly + flat shading** : facettes visibles, zéro texture — couleurs par sommet, palette pastel par biome fondue entre tuiles, léger éclaircissement avec l'altitude.
+- **Eau** : plan translucide au niveau de la mer ; les fonds se teintent du sable au bleu profond avec la profondeur.
+- **Lumière vivante** : soleil directionnel qui suit le cycle jour/nuit, couleur du ciel et de l'ambiance changeant avec l'heure et la saison.
 - Audio : ambiances par biome/météo, motifs musicaux réactifs à la ferveur (post-MVP).
 
 ## 7. Ce que le jeu n'est PAS (anti-scope)
 - Pas de contrôle direct d'unités (≠ RTS).
-- Pas de scénario écrit, pas de quêtes scriptées.
-- Pas de 3D au MVP.
+- Pas de scénario écrit, pas de quêtes scriptées, **pas de fin imposée**.
+- Pas de réalisme graphique (le low poly stylisé est un choix, pas une étape).
 - Pas de multijoueur au MVP (architecture déterministe compatible lockstep pour plus tard).
 
 ## 8. Critères de succès du MVP

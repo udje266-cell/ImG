@@ -23,12 +23,17 @@ Chromium préinstallé : `executablePath: "/opt/pw-browsers/chromium"` avec
 `playwright-core` (à installer hors du repo, ex. dans le scratchpad — ne pas
 l'ajouter aux devDependencies du jeu).
 
+**Le rendu est 3D WebGL (Three.js)** : lancer Chromium avec
+`args: ["--enable-unsafe-swiftshader", "--use-gl=angle", "--use-angle=swiftshader"]`
+sinon le contexte WebGL échoue en headless. Attendre ~2,5 s après goto
+(compilation shaders + build du maillage).
+
 Flux qui couvrent le MVP :
-- **Rendu** : goto, attendre ~1.5 s, screenshot — continents/biomes visibles, HUD `#hud` affiche `Foi : N / M`.
-- **Terraforming** : `mouse.down()` + petits `mouse.move` ~100 ms d'intervalle (l'UI throttle à 1 intent/90 ms) → relief surélevé ; avec `Shift` → creuse (l'eau apparaît sous le niveau de la mer). La Foi du HUD doit baisser pendant la sculpture.
-- **Caméra** : molette = zoom (`mouse.wheel(0, -400)`), drag bouton droit = pan.
-- **Temps** : `Digit3` = ×16 (1 jour ≈ 1,5 s), la 2e ligne du HUD avance ; `Space` = pause, la ligne se fige et la sculpture ne s'applique plus (les ticks sont gelés — comportement attendu).
-- **Jour/nuit** : comparer la luminosité entre ~01:00 (sombre) et ~12:00 (claire).
+- **Rendu** : screenshot — continents low poly en terrasses, eau translucide, HUD `#hud` affiche `Foi : N / M`.
+- **Terraforming** : `mouse.down()` + petits `mouse.move` ~105 ms d'intervalle (l'UI throttle à 1 intent/90 ms) → dôme en terrasses ; cliquer `#tool-lower` (chemin mobile) puis maintenir → creuse. La Foi du HUD doit baisser pendant la sculpture.
+- **Caméra** : molette = zoom, `KeyQ`/`KeyE` = rotation (l'angle de vue change), drag droit = pan.
+- **Temps** : `Digit3` = ×16 (1 jour ≈ 1,5 s), la 2e ligne du HUD avance ; `Space` = pause, la ligne se fige et la sculpture ne s'applique plus (ticks gelés — attendu).
+- **Jour/nuit** : le soleil/ciel suivent l'heure — comparer midi (clair) et ~19:00 (crépuscule orangé sombre).
 
 ## Pièges connus
 

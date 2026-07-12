@@ -2,29 +2,46 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>ImG — God Game</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>" />
     <style>
       html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0b0e14; }
-      #game { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
+      #game { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: crosshair; }
       #hud {
-        position: fixed; top: 12px; left: 12px; padding: 10px 14px;
+        position: fixed; top: calc(12px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left));
+        padding: 10px 14px;
         background: rgba(11, 14, 20, 0.82); border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 8px; color: #e6e9f0;
         font: 13px/1.6 system-ui, sans-serif; pointer-events: none; user-select: none;
         white-space: pre;
       }
+      #toolbar {
+        position: fixed; top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right));
+        display: flex; flex-direction: column; gap: 8px; user-select: none;
+      }
+      #toolbar button {
+        width: 52px; height: 52px; font-size: 24px; border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.15); background: rgba(11, 14, 20, 0.82);
+        color: #e6e9f0; cursor: pointer; touch-action: manipulation;
+      }
+      #toolbar button.active { border-color: #ffd66e; background: rgba(80, 62, 18, 0.9); }
       #help {
-        position: fixed; bottom: 12px; left: 12px; color: rgba(230, 233, 240, 0.55);
+        position: fixed; bottom: calc(12px + env(safe-area-inset-bottom)); left: 12px;
+        color: rgba(230, 233, 240, 0.55);
         font: 12px/1.5 system-ui, sans-serif; pointer-events: none; user-select: none;
       }
+      @media (pointer: coarse) { #help { display: none; } }
     </style>
   </head>
   <body>
     <canvas id="game"></canvas>
     <div id="hud"></div>
-    <div id="help">Clic gauche : élever le terrain · Maj+clic : abaisser · Clic droit/milieu : déplacer · Molette : zoom · Espace : pause · 1/2/3 : vitesse</div>
+    <div id="toolbar">
+      <button id="tool-raise" title="Élever le terrain" aria-label="Élever">⛰️</button>
+      <button id="tool-lower" title="Abaisser le terrain" aria-label="Abaisser">🕳️</button>
+    </div>
+    <div id="help">1 doigt / clic gauche : sculpter (Maj : inverser) · 2 doigts / clic droit : caméra · Molette / pincer : zoom · Q/E : pivoter · Espace : pause · 1/2/3 : vitesse</div>
     <script type="module" src="/src/app/main.ts"></script>
   </body>
 </html>
