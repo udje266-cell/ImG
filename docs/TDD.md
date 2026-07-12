@@ -104,7 +104,7 @@ ImG/
 
 ### 4.5 Rendu (`render`)
 - `Camera2D` : position monde + zoom ; conversions écran↔monde.
-- `TerrainRenderer` : un canvas offscreen **par chunk** (32×32 px logiques), redessiné uniquement si dirty ; hillshading par gradient de hauteur ; blit visible-only vers le canvas principal.
+- `TerrainRenderer` : un canvas offscreen **par chunk**, redessiné uniquement si dirty ; blit visible-only vers le canvas principal. Style *Godus* (GDD §6) : le relief est échantillonné en **bilinéaire à 4 px/tuile** (`heightSampler.ts`) puis quantifié en terrasses (`terraces.ts`) ; les courbes de niveau sont tracées là où la hauteur croise une frontière de strate, avec une épaisseur proportionnelle au gradient local (aucune ligne parasite sur les plateaux) ; couleurs de biomes fondues bilinéairement, eau en bandes de profondeur plates avec liseré d'écume côtier. Un chunk modifié invalide aussi ses 4 voisins (l'échantillonnage lit jusqu'à une tuile au-delà de la frontière).
 - `DayNightOverlay` : teinte multipliée selon `timeOfDay` + saison.
 
 ### 4.6 Sauvegarde (`sim/save`, phase 2)

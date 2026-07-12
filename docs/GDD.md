@@ -136,8 +136,12 @@ Chaque pouvoir a un **impact de croyance** : les témoins deviennent croyants, s
 ---
 
 ## 6. Direction artistique & audio (cadrage)
-- 2D vue du dessus, tuiles colorées avec ombrage du relief (« carte vivante » lisible avant d'être jolie).
-- Palette par biome, teinte globale jour/nuit et saisonnière.
+Référence assumée : **le style de *Godus*** (Populous-like de 22cans), transposé en 2D vue du dessus avec des assets 100 % originaux :
+- **Terrain stratifié en terrasses** : les hauteurs continues de la simulation sont quantifiées en strates visuelles discrètes, comme des couches de papier découpé empilées ; chaque coup de pinceau divin ajoute/retire environ une strate.
+- **Aplats pastel, zéro texture** : une couleur plate par biome, rayures alternées subtiles entre strates paires/impaires pour que chaque terrasse se lise individuellement, léger éclaircissement avec l'altitude.
+- **Liserés de contour** : couture sombre là où deux strates se rencontrent — c'est elle qui dessine les courbes de niveau caractéristiques.
+- **Eau en bandes plates** : turquoise clair → bleu profond par paliers de profondeur (pas de dégradé), avec une **ligne d'écume claire** le long des côtes.
+- Teinte globale jour/nuit et saisonnière par-dessus.
 - Audio : ambiances par biome/météo, motifs musicaux réactifs à la ferveur (post-MVP).
 
 ## 7. Ce que le jeu n'est PAS (anti-scope)
