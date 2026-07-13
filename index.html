@@ -6,56 +6,106 @@
     <title>ImG — God Game</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>" />
     <style>
-      html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0b0e14; }
+      :root {
+        --panel: rgba(24, 30, 44, 0.72);
+        --panel-border: rgba(255, 255, 255, 0.16);
+        --accent: #ffd66e;
+        --text: #f2f5fb;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0b0e14;
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif; }
       #game { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: crosshair; }
-      #hud {
-        position: fixed; top: calc(12px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left));
-        padding: 10px 14px;
-        background: rgba(11, 14, 20, 0.82); border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 8px; color: #e6e9f0;
-        font: 13px/1.6 system-ui, sans-serif; pointer-events: none; user-select: none;
-        white-space: pre;
+
+      /* --- Ressources (haut-gauche), en pastilles --- */
+      #resources {
+        position: fixed; top: calc(10px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left));
+        display: flex; flex-direction: column; gap: 6px; user-select: none; pointer-events: none;
       }
-      #toolbar {
-        position: fixed; top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right));
-        display: flex; flex-direction: column; gap: 8px; user-select: none;
+      .pill {
+        display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 8px;
+        background: var(--panel); border: 1px solid var(--panel-border); border-radius: 999px;
+        color: var(--text); font-size: 14px; font-weight: 600; min-width: 118px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.25);
       }
-      #toolbar button {
-        width: 52px; height: 52px; font-size: 24px; border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.15); background: rgba(11, 14, 20, 0.82);
-        color: #e6e9f0; cursor: pointer; touch-action: manipulation;
+      .pill .ico { font-size: 16px; line-height: 1; }
+      .pill .bar { position: relative; flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.15); overflow: hidden; }
+      .pill .bar > i { position: absolute; inset: 0; width: 0%; border-radius: 3px; background: var(--accent); transition: width 0.2s; }
+      #clock {
+        margin-top: 2px; padding: 4px 12px; background: var(--panel); border: 1px solid var(--panel-border);
+        border-radius: 12px; color: var(--text); font-size: 12px; font-weight: 500; opacity: 0.92;
       }
-      #toolbar button.active { border-color: #ffd66e; background: rgba(80, 62, 18, 0.9); }
-      #toolbar button:disabled { opacity: 0.45; cursor: not-allowed; }
-      #toolbar button.spaced { margin-top: 14px; }
-      #help {
-        position: fixed; bottom: calc(12px + env(safe-area-inset-bottom)); left: 12px;
-        color: rgba(230, 233, 240, 0.55);
-        font: 12px/1.5 system-ui, sans-serif; pointer-events: none; user-select: none;
+      #flash {
+        margin-top: 2px; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;
+        color: #1a1204; background: var(--accent); box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+        opacity: 0; transform: translateY(-4px); transition: opacity 0.2s, transform 0.2s;
       }
+      #flash.show { opacity: 1; transform: translateY(0); }
+
+      /* --- Réglages (haut-droite) --- */
+      #btn-settings {
+        position: fixed; top: calc(10px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right));
+        width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--panel-border);
+        background: var(--panel); color: var(--text); font-size: 20px; cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      }
+
+      /* --- Barre d'action (bas-centre), boutons ronds --- */
+      #actionbar {
+        position: fixed; left: 50%; transform: translateX(-50%);
+        bottom: calc(14px + env(safe-area-inset-bottom));
+        display: flex; align-items: flex-end; gap: 14px; user-select: none;
+      }
+      .action { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+      .action > button {
+        width: 60px; height: 60px; border-radius: 50%; font-size: 26px;
+        border: 2px solid var(--panel-border); background: var(--panel); color: var(--text);
+        cursor: pointer; touch-action: manipulation; transition: transform 0.1s, border-color 0.15s, background 0.15s;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+      }
+      .action > button:active { transform: scale(0.92); }
+      .action > button.active { border-color: var(--accent); background: rgba(94, 74, 22, 0.92); }
+      .action > button:disabled { opacity: 0.4; cursor: not-allowed; }
+      .action > .label { font-size: 11px; font-weight: 600; color: var(--text); text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+      .action.small > button { width: 46px; height: 46px; font-size: 20px; }
+      #actionbar .sep { width: 1px; align-self: stretch; margin: 8px 2px; background: rgba(255,255,255,0.14); }
+
       #perf {
-        position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
-        display: none; padding: 8px 12px; border-radius: 8px;
-        background: rgba(11, 14, 20, 0.85); border: 1px solid rgba(255, 255, 255, 0.12);
-        color: #9fe6b0; font: 12px/1.5 ui-monospace, monospace;
-        pointer-events: none; user-select: none; white-space: pre;
+        position: fixed; top: 60px; right: 12px; display: none; padding: 8px 12px; border-radius: 10px;
+        background: var(--panel); border: 1px solid var(--panel-border);
+        color: #9fe6b0; font: 12px/1.5 ui-monospace, monospace; pointer-events: none; user-select: none; white-space: pre;
+      }
+      #help {
+        position: fixed; bottom: 4px; left: 12px; color: rgba(230, 233, 240, 0.4);
+        font: 11px/1.4 system-ui, sans-serif; pointer-events: none; user-select: none;
       }
       @media (pointer: coarse) { #help { display: none; } }
     </style>
   </head>
   <body>
     <canvas id="game"></canvas>
-    <div id="hud"></div>
-    <div id="toolbar">
-      <button id="tool-raise" title="Élever le terrain" aria-label="Élever">⛰️</button>
-      <button id="tool-lower" title="Abaisser le terrain" aria-label="Abaisser">🕳️</button>
-      <button id="tool-flatten" title="Aplanir (se débloque avec la Dévotion)" aria-label="Aplanir" disabled>🔒</button>
-      <button id="tool-rain" title="Invoquer la pluie (se débloque avec la Dévotion)" aria-label="Pluie" disabled>🔒</button>
-      <button id="btn-save" class="spaced" title="Sauvegarder (S)" aria-label="Sauvegarder">💾</button>
-      <button id="btn-load" title="Charger (L)" aria-label="Charger" disabled>📂</button>
+
+    <div id="resources">
+      <div class="pill" title="Foi"><span class="ico">💎</span><span id="faith-val">—</span><span class="bar"><i id="faith-bar"></i></span></div>
+      <div class="pill" title="Dévotion"><span class="ico">✨</span><span id="devotion-val">—</span></div>
+      <div id="clock">—</div>
+      <div id="flash"></div>
     </div>
+
+    <button id="btn-settings" title="Perfs (P)" aria-label="Réglages">⚙️</button>
+
+    <div id="actionbar">
+      <div class="action"><button id="tool-raise" title="Élever">⛰️</button><span class="label">Élever</span></div>
+      <div class="action"><button id="tool-lower" title="Abaisser">🕳️</button><span class="label">Abaisser</span></div>
+      <div class="action"><button id="tool-flatten" title="Aplanir" disabled>🔒</button><span class="label">Aplanir</span></div>
+      <div class="action"><button id="tool-rain" title="Pluie" disabled>🔒</button><span class="label">Pluie</span></div>
+      <div class="sep"></div>
+      <div class="action small"><button id="btn-save" title="Sauvegarder (S)">💾</button><span class="label">Sauver</span></div>
+      <div class="action small"><button id="btn-load" title="Charger (L)" disabled>📂</button><span class="label">Charger</span></div>
+    </div>
+
     <div id="perf"></div>
-    <div id="help">1 doigt / clic gauche : sculpter (Maj : inverser) · 2 doigts / clic droit : caméra · Molette / pincer : zoom · Q/E : pivoter · Espace : pause · 1/2/3 : vitesse · S/L : sauver/charger · P : perfs</div>
+    <div id="help">Clic gauche : sculpter (Maj : inverser) · Clic droit : caméra · Molette : zoom · Q/E : pivoter · Espace : pause · 1/2/3 : vitesse</div>
     <script type="module" src="/src/app/main.ts"></script>
   </body>
 </html>

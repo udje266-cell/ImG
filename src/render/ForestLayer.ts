@@ -23,7 +23,13 @@ const MAX_TREES = 1200;
 /** Densité de flore minimale pour qu'une tuile porte un arbre. */
 const TREE_THRESHOLD = 0.35;
 /** Hauteur d'un arbre, en unités monde (≈ tuiles). */
-const TREE_HEIGHT = 3.2;
+const TREE_HEIGHT = 2.6;
+/**
+ * Espacement des arbres : au plus un arbre par bloc STRIDE×STRIDE tuiles, pour
+ * des bosquets aérés plutôt qu'une masse compacte. Chaque bloc tire une
+ * position jittée en son sein.
+ */
+const STRIDE = 4;
 
 /**
  * Forêts instanciées (docs/TDD.md §5) : un seul `InstancedMesh` de l'arbre
@@ -91,18 +97,20 @@ export class ForestLayer {
     const rng = new Rng(sim.worldConfig.seed ^ 0x7ee5);
     let count = 0;
 
-    for (let y = 0; y < terrain.height && count < MAX_TREES; y++) {
-      for (let x = 0; x < terrain.width && count < MAX_TREES; x++) {
-        const density = flora.densityAt(x, y);
-        if (density < TREE_THRESHOLD || terrain.isWater(x, y)) continue;
-        // Probabilité de planter ∝ densité au-dessus du seuil : les tuiles
-        // très vertes portent un arbre, les rares en portent parfois.
-        const chance = (density - BARE_THRESHOLD) * 0.6;
-        if (rng.float() > chance) continue;
+    // Un candidat par bloc STRIDE×STRIDE : les arbres restent espacés.
+    for (let by = 0; by < terrain.height && count < MAX_TREES; by += STRIDE) {
+      for (let bx = 0; bx < terrain.width && count < MAX_TREES; bx += STRIDE) {
+        // Position jittée à l'intérieur du bloc.
+        const jx = bx + rng.float() * STRIDE;
+        const jy = by + rng.float() * STRIDE;
+        const tx = Math.min(terrain.width - 1, Math.floor(jx));
+        const ty = Math.min(terrain.height - 1, Math.floor(jy));
+        const density = flora.densityAt(tx, ty);
+        if (density < TREE_THRESHOLD || terrain.isWater(tx, ty)) continue;
+        // Densité forte → bloc presque toujours boisé ; densité faible → rare.
+        if (rng.float() > (density - BARE_THRESHOLD) * 1.3) continue;
 
-        const jx = x + 0.5 + (rng.float() - 0.5) * 0.8;
-        const jy = y + 0.5 + (rng.float() - 0.5) * 0.8;
-        const scale = this.baseScale * (0.75 + density * 0.5) * (0.85 + rng.float() * 0.3);
+        const scale = this.baseScale * (0.7 + density * 0.5) * (0.85 + rng.float() * 0.3);
         this.dummy.position.set(jx, groundHeightAt(terrain, jx, jy), jy);
         this.dummy.rotation.set(0, rng.float() * Math.PI * 2, 0);
         this.dummy.scale.setScalar(scale);

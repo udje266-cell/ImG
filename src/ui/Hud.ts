@@ -16,16 +16,31 @@ const SEASON_LABELS: Record<Season, string> = {
 
 const FLASH_DURATION_MS = 2600;
 
-/** Minimal HUD: faith, devotion, calendar, time control (docs/GDD.md §5.3). */
+/**
+ * HUD façon god-game mobile (docs/GDD.md §5.3) : pastilles de ressources
+ * (Foi + barre, Dévotion), ligne de calendrier, message flash. Les boutons
+ * d'action sont dans la barre du bas (gérés par InputController).
+ */
 export class Hud {
-  private flashMessage = "";
+  private readonly faithVal: HTMLElement;
+  private readonly faithBar: HTMLElement;
+  private readonly devotionVal: HTMLElement;
+  private readonly clock: HTMLElement;
+  private readonly flashEl: HTMLElement;
   private flashUntil = 0;
 
-  constructor(private readonly element: HTMLElement) {}
+  constructor(root: Document = document) {
+    this.faithVal = root.getElementById("faith-val")!;
+    this.faithBar = root.getElementById("faith-bar")!;
+    this.devotionVal = root.getElementById("devotion-val")!;
+    this.clock = root.getElementById("clock")!;
+    this.flashEl = root.getElementById("flash")!;
+  }
 
   /** Message temporaire (sauvegarde, déblocage de pouvoir...). */
   flash(message: string): void {
-    this.flashMessage = message;
+    this.flashEl.textContent = message;
+    this.flashEl.classList.add("show");
     this.flashUntil = performance.now() + FLASH_DURATION_MS;
   }
 
@@ -34,16 +49,16 @@ export class Hud {
     const totalMinutes = Math.floor(clock.timeOfDay * 24 * 60);
     const hours = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
     const minutes = String(totalMinutes % 60).padStart(2, "0");
-    const speed = time.paused ? "Pause" : `Vitesse x${time.speed}`;
+    const speed = time.paused ? "⏸ Pause" : `▶ ×${time.speed}`;
 
-    let text =
-      `Foi : ${Math.floor(sim.faith.current)} / ${sim.faith.max}\n` +
-      `Dévotion : ${Math.floor(sim.progression.devotion)}\n` +
-      `An ${clock.year + 1} — ${SEASON_LABELS[clock.season]}, jour ${clock.dayOfSeason + 1} — ${hours}:${minutes}\n` +
-      `${speed}`;
-    if (performance.now() < this.flashUntil) {
-      text += `\n★ ${this.flashMessage}`;
+    this.faithVal.textContent = String(Math.floor(sim.faith.current));
+    this.faithBar.style.width = `${(sim.faith.current / sim.faith.max) * 100}%`;
+    this.devotionVal.textContent = String(Math.floor(sim.progression.devotion));
+    this.clock.textContent =
+      `An ${clock.year + 1} · ${SEASON_LABELS[clock.season]} j${clock.dayOfSeason + 1} · ${hours}:${minutes}  ${speed}`;
+
+    if (performance.now() >= this.flashUntil) {
+      this.flashEl.classList.remove("show");
     }
-    this.element.textContent = text;
   }
 }

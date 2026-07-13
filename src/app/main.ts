@@ -24,11 +24,11 @@ function boot(): void {
   if (tickParam) sim.clock.tick = Math.max(0, Number.parseInt(tickParam, 10) || 0);
 
   const canvas = document.getElementById("game") as HTMLCanvasElement;
-  const hudElement = document.getElementById("hud")!;
 
   const renderer = new SceneRenderer(canvas, sim);
-  const hud = new Hud(hudElement);
+  const hud = new Hud();
   const perf = new PerfOverlay(document.getElementById("perf")!, sim);
+  document.getElementById("btn-settings")?.addEventListener("click", () => perf.toggle());
   const loop = new GameLoop(sim, () => {
     renderer.render(sim);
     hud.update(sim, { paused: loop.paused, speed: loop.speed });

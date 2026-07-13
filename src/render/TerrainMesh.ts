@@ -24,10 +24,10 @@ export function groundHeightAt(terrain: TerrainGrid, wx: number, wy: number): nu
   if (h < terrain.seaLevel) return (h - terrain.seaLevel) * HEIGHT_SCALE;
   return (landLayer(h, terrain.seaLevel) + 0.5) * TERRACE_HEIGHT;
 }
-/** Brightness multiplier of the darker stripe on odd terraces. */
-const STRIPE_SHADE = 0.95;
-/** Subtle brightening per terrace so high ground still reads as high. */
-const ALTITUDE_LIGHT_PER_LAYER = 0.012;
+/** Brightness multiplier of the darker stripe on odd terraces (bandes franches). */
+const STRIPE_SHADE = 0.9;
+/** Brightening per terrace so high ground reads as high (contraste vertical). */
+const ALTITUDE_LIGHT_PER_LAYER = 0.02;
 
 /**
  * The world as one low-poly heightmap mesh (docs/TDD.md §4.5, ADR 0002).
