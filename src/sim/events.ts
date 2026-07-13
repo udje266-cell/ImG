@@ -22,4 +22,6 @@ export type GameEvents = {
   "power:rejected": { power: PowerId; reason: PowerRejectionReason };
   /** Un seuil de dévotion vient d'être franchi (cahier des charges §7). */
   "progression:powerUnlocked": { power: PowerId; devotion: number };
+  /** La flore a évolué ce tick — le rendu des forêts peut se rafraîchir. */
+  "flora:updated": Record<string, never>;
 };

@@ -128,6 +128,10 @@ ImG/
 - `TerrainGrid` gagne `moisture` (vivante) + `baselineMoisture` (équilibre) ; `setMoisture` marque les chunks sales comme `setHeight`.
 - Rendu : `WeatherLayer` — `InstancedMesh` d'un quad par cellule météo, teinté blanc→gris orage, un seul draw call.
 
+### 4.6 ter Écologie — flore (`sim/ecology/FloraSystem.ts` — phase 3)
+- Densité de végétation ∈ [0,1] par tuile. Capacité = capacité du biome × adéquation de l'humidité ; croissance logistique vers la capacité, régression au-dessus (sécheresse/gel), essaimage vers les 4 voisins, germination spontanée rare. Rien ne pousse en hiver (facteur saisonnier = 0). Déterministe (stream "flora"), cadencée `FLORA_INTERVAL` (10 ticks), émet `flora:updated`.
+- Rendu : `ForestLayer` — `InstancedMesh` unique de l'arbre décimé, instances placées sur les tuiles dont la densité dépasse un seuil (placement déterministe par RNG de seed), reconstruit uniquement sur `flora:updated`. Un draw call ; cap `MAX_TREES` (1200). LOD impostor à prévoir pour les forêts denses.
+
 ### 4.7 Progression divine (`sim/powers/ProgressionSystem.ts` — v1)
 - La **Dévotion** (cumul à vie de la Foi dépensée en miracles) franchit des seuils déclarés dans `POWER_UNLOCK_THRESHOLDS` → événement `progression:powerUnlocked`.
 - `PowerSystem` rejette (`reason: "locked"`) tout intent d'un pouvoir non débloqué — atomique, aucun état partiel.

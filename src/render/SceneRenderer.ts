@@ -14,6 +14,7 @@ import {
 } from "three";
 import type { Simulation } from "../sim/world/Simulation";
 import { CameraRig } from "./CameraRig";
+import { ForestLayer } from "./ForestLayer";
 import { Showcase } from "./Showcase";
 import { TerrainMesh } from "./TerrainMesh";
 import { WeatherLayer } from "./WeatherLayer";
@@ -45,6 +46,7 @@ export class SceneRenderer {
   private viewW = 1;
   private viewH = 1;
   private showcase: Showcase | null = null;
+  private forest: ForestLayer | null = null;
   private lastFrameAt: number | null = null;
 
   constructor(
@@ -136,6 +138,16 @@ export class SceneRenderer {
     return this.showcase.center;
   }
 
+  /** Charge la couche de forêts instanciées (arbres selon la flore). */
+  async enableForest(sim: Simulation, treeUrl: string): Promise<void> {
+    this.forest = await ForestLayer.create(sim, treeUrl, (mesh) => this.scene.add(mesh));
+  }
+
+  /** Nombre d'arbres instanciés (-1 si la forêt n'est pas chargée) — debug. */
+  get forestTreeCount(): number {
+    return this.forest?.count ?? -1;
+  }
+
   render(sim: Simulation): void {
     // Les animations d'idle du showcase suivent le temps réel du rendu.
     const now = performance.now();
@@ -159,6 +171,7 @@ export class SceneRenderer {
     this.scene.background = this.skyColor;
 
     this.weatherLayer.update();
+    this.forest?.refresh();
 
     this.rig.update();
     this.renderer.render(this.scene, this.rig.camera);

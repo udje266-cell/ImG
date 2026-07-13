@@ -19,6 +19,10 @@ function boot(): void {
 
   const sim = restoreOrCreate(params, seed);
 
+  // Debug : ?tick=<n> cale l'horloge (utile pour figer une heure — captures).
+  const tickParam = params.get("tick");
+  if (tickParam) sim.clock.tick = Math.max(0, Number.parseInt(tickParam, 10) || 0);
+
   const canvas = document.getElementById("game") as HTMLCanvasElement;
   const hudElement = document.getElementById("hud")!;
 
@@ -54,6 +58,11 @@ function boot(): void {
     if (power === "rain") hud.flash("Pouvoir débloqué : Pluie 🌧️");
   });
 
+  // Forêts : arbres instanciés selon la densité de flore (hors showcase).
+  if (!params.has("showcase")) {
+    void renderer.enableForest(sim, "models/props/tree.glb");
+  }
+
   // Mode validation des modèles 3D : ?showcase=1 pose personnages et animaux
   // du catalogue sur la terre la plus proche du centre, en plein midi.
   if (params.has("showcase")) {
@@ -63,6 +72,11 @@ function boot(): void {
       renderer.rig.target.set(spot.x, 0, spot.y);
       renderer.rig.distance = 22;
     });
+  }
+
+  // Hook de debug (?debug) : inspection depuis la console ou les tests e2e.
+  if (params.has("debug")) {
+    (window as unknown as { __img: unknown }).__img = { sim, renderer, loop };
   }
 
   window.addEventListener("resize", () => renderer.resize());

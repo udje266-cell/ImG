@@ -18,12 +18,15 @@ import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
 import { dedup, prune, simplify, weld } from "@gltf-transform/functions";
 import { MeshoptSimplifier } from "meshoptimizer";
 
-const [, , input, output, ratioArg] = process.argv;
+const [, , input, output, ratioArg, errorArg] = process.argv;
 if (!input || !output) {
-  console.error("Usage: node tools/decimate-model.mjs <input.glb> <output.glb> [ratio]");
+  console.error("Usage: node tools/decimate-model.mjs <input.glb> <output.glb> [ratio] [error]");
   process.exit(1);
 }
 const ratio = Number(ratioArg ?? "0.02");
+// `error` = déviation max tolérée (fraction de la taille du modèle). Plus haut
+// = plus agressif. 0.01 par défaut ; ~0.1+ pour un LOD lointain très léger.
+const maxError = Number(errorArg ?? "0.01");
 
 function triangleCount(doc) {
   let tris = 0;
@@ -43,8 +46,8 @@ const before = triangleCount(doc);
 
 await doc.transform(
   dedup(),
-  weld(),
-  simplify({ simplifier: MeshoptSimplifier, ratio, error: 0.01 }),
+  weld({ tolerance: maxError > 0.05 ? 0.001 : 0.0001 }),
+  simplify({ simplifier: MeshoptSimplifier, ratio, error: maxError, lockBorder: false }),
   prune(),
 );
 

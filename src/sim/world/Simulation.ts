@@ -11,6 +11,7 @@ import { ProgressionSystem } from "../powers/ProgressionSystem";
 import { RainPower } from "../powers/RainPower";
 import { TerraformPower } from "../powers/TerraformPower";
 import type { TerrainGrid } from "../terrain/TerrainGrid";
+import { FLORA_INTERVAL, FloraSystem } from "../ecology/FloraSystem";
 import { seasonalOffset } from "../weather/seasons";
 import { WEATHER_INTERVAL, WeatherSystem } from "../weather/WeatherSystem";
 import { generateWorld } from "../worldgen/WorldGenerator";
@@ -40,6 +41,7 @@ export class Simulation {
   readonly powers: PowerSystem;
   readonly progression: ProgressionSystem;
   readonly weather: WeatherSystem;
+  readonly flora: FloraSystem;
   /** Config effective du monde — nécessaire à la sauvegarde (seed + deltas). */
   readonly worldConfig: { seed: number; width: number; height: number; seaLevel: number };
   private readonly scheduler: Scheduler<Simulation>;
@@ -60,10 +62,15 @@ export class Simulation {
     this.powers.register(new FlattenPower());
     this.powers.register(new RainPower());
     this.weather = new WeatherSystem(this.terrain, this.rng);
+    this.flora = new FloraSystem(this.terrain, this.rng);
     this.applySeasonalOffset();
+    this.flora.setSeason(this.clock.season);
 
-    // Re-classifie les biomes à chaque changement de saison.
-    this.bus.on("time:seasonChanged", () => this.applySeasonalOffset());
+    // Re-classifie les biomes et met à jour la flore à chaque changement de saison.
+    this.bus.on("time:seasonChanged", () => {
+      this.applySeasonalOffset();
+      this.flora.setSeason(this.clock.season);
+    });
 
     // Tick order matters and is explicit (docs/UML.md §3).
     this.scheduler = new Scheduler<Simulation>(config.now);
@@ -74,7 +81,15 @@ export class Simulation {
       interval: WEATHER_INTERVAL,
       update: (sim) => sim.weather.update(),
     });
-    // Future systems (ecology, agents...) register here.
+    this.scheduler.add({
+      id: "flora",
+      interval: FLORA_INTERVAL,
+      update: (sim) => {
+        sim.flora.update();
+        sim.bus.emit("flora:updated", {});
+      },
+    });
+    // Future systems (agents...) register here.
   }
 
   /** Durée du dernier passage de chaque système (ms) — overlay de perf. */
@@ -86,9 +101,10 @@ export class Simulation {
     this.terrain.setSeasonalTemperatureOffset(seasonalOffset(this.clock.season));
   }
 
-  /** Réaligne l'offset saisonnier sur le tick courant (après un chargement). */
+  /** Réaligne saison (offset thermique + flore) sur le tick courant (après un chargement). */
   reapplySeasonalOffset(): void {
     this.applySeasonalOffset();
+    this.flora.setSeason(this.clock.season);
   }
 
   /** Advance the simulation by exactly one fixed tick. */
