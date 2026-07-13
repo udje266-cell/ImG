@@ -28,6 +28,14 @@ déclarés dans `src/render/modelCatalog.ts`, licences dans
    `targetHeight` en tuiles) et **ajouter sa ligne de licence** dans `LICENSES.md`.
 5. **Vérifier** dans `?showcase=1` avant de l'utiliser en jeu.
 
+## Textures du terrain (PBR)
+Le terrain procédural est habillé par **splatting de 4 matières** (Grass / Sand /
+Rock / Dirt) mélangées par biome + pente + altitude dans le shader
+(`src/render/TerrainMaterial.ts`). Les textures vivent dans
+`public/textures/terrain/<Slot>/<Slot>_{BaseColor,Normal}.png` — vraies textures
+**ambientCG (CC0)** en 512 px (Color + NormalGL). Les remplacer = écraser les PNG,
+aucun code à toucher. Licences : `public/textures/terrain/LICENSES.md`.
+
 ## Budgets (rappel)
 - Monde (terrain procédural) : ~130 k triangles.
 - Prop instancié (arbre, rocher) : viser < 3–8 k triangles, réutilisé via
