@@ -14,11 +14,15 @@ import { WEATHER_CELL } from "../sim/weather/WeatherSystem";
 
 /** Altitude (world units) of the cloud sheet above sea level. */
 const CLOUD_ALTITUDE = 34;
-/** Below this cloudiness a cell draws no cloud puff. */
-const VISIBLE_THRESHOLD = 0.12;
+/**
+ * Below this cloudiness a cell draws no cloud puff. Kept high so clear skies
+ * stay clear and only building weather (>= this) casts clouds — otherwise the
+ * many low-cover cells blanket the world in a dull haze.
+ */
+const VISIBLE_THRESHOLD = 0.42;
 
-const FAIR_COLOR = new Color("#f4f6fb");
-const STORM_COLOR = new Color("#8a93a6");
+const FAIR_COLOR = new Color("#fbfdff");
+const STORM_COLOR = new Color("#9aa3b4");
 
 /**
  * Couche météo (docs/TDD.md §4.5) : une nappe de nuages en `InstancedMesh`
@@ -43,7 +47,7 @@ export class WeatherLayer {
     geometry.rotateX(-Math.PI / 2);
     const material = new MeshLambertMaterial({
       transparent: true,
-      opacity: 0.82,
+      opacity: 0.7,
       depthWrite: false,
       vertexColors: false,
     });
