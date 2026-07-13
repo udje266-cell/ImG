@@ -139,6 +139,10 @@ ImG/
 - Économie : `faithIncome()` = Σ ferveur × constante ; la Simulation l'ajoute à la Foi chaque tick → boucle des croyants (GDD §2).
 - Rendu : `InhabitantsLayer` — un `InstancedMesh` par modèle (homme/femme), repositionné depuis `snapshot()` chaque frame. Perf : impostors/index spatial à venir pour viser 10 000 agents.
 
+### 4.6 quinquies Faune (`sim/ecology/FaunaSystem.ts` — phase B)
+- Chaîne alimentaire déterministe (stream "fauna"), stores SoA avec suppression par swap. Herbivores : broutent la flore (`flora.setDensity`), fuient les prédateurs à portée, se reproduisent quand rassasiés, meurent de faim. Prédateurs : chassent l'herbivore le plus proche (test de prédation seulement quand la cible est à portée de gueule pour éviter un balayage O(n) par tick), se reproduisent, s'éteignent sans proie. Plafonds par espèce.
+- Rendu : `FaunaLayer` — un `InstancedMesh` par espèce (cheval/renard). Les modèles animaux étant **animés** (skinning + morph), leur géométrie est nettoyée (attributs skin/morph retirés) et un matériau propre est recréé avant instanciation statique.
+
 ### 4.7 Progression divine (`sim/powers/ProgressionSystem.ts` — v1)
 - La **Dévotion** (cumul à vie de la Foi dépensée en miracles) franchit des seuils déclarés dans `POWER_UNLOCK_THRESHOLDS` → événement `progression:powerUnlocked`.
 - `PowerSystem` rejette (`reason: "locked"`) tout intent d'un pouvoir non débloqué — atomique, aucun état partiel.

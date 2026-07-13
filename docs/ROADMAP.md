@@ -54,7 +54,8 @@ Le MVP (phases 0–1) doit prouver les fondations, pas empiler des features :
 ### Phase 3 — Écologie (flore livrée ✅)
 - **Flore** (`FloraSystem`) : densité de végétation par tuile, croissance logistique selon humidité/biome, essaimage vers les voisins, mortalité en sécheresse et en hiver. Déterministe (stream RNG "flora"), branchée sur l'humidité de la météo (faites pleuvoir → ça verdit). Rendu : **forêts instanciées** de l'arbre décimé (`ForestLayer`, 1 draw call, jusqu'à 1200 arbres).
 - **Sauvegarde v3** : densité de flore + RNG, migration v1/v2→v3 testée.
-- À venir : faune (herbivores/prédateurs, reproduction, migration), ressources renouvelables/finies, pouvoirs « faire pousser une forêt » et « créer une espèce animale » (cahier des charges §3).
+- **Faune** (`FaunaSystem`) ✅ : chaîne alimentaire simple et déterministe (stream "fauna"). Herbivores (chevaux) qui broutent la flore, fuient, se reproduisent, meurent de faim ; prédateurs (renards) qui chassent, se reproduisent, s'éteignent sans proie. Populations auto-régulées avec plafonds, rendu instancié (`FaunaLayer`), sauvegarde v5.
+- À venir : ressources renouvelables/finies, migration saisonnière, pouvoirs « faire pousser une forêt » et « créer une espèce animale » (cahier des charges §3).
 - **Optimisation identifiée** : l'arbre décimé fait ~7,9 k triangles (feuilles = îlots séparés, non réductibles par simplification) — trop lourd pour des forêts très denses. Prévoir des **impostors/billboards** pour le LOD lointain (phase Optimisation).
 
 ### Phase 4 — Les habitants (première itération ✅)

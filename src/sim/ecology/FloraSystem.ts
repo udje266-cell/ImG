@@ -92,6 +92,11 @@ export class FloraSystem {
     return this.density[this.terrain.index(x, y)]!;
   }
 
+  /** Fixe la densité (bornée [0,1]) — le broutage de la faune l'abaisse. */
+  setDensity(x: number, y: number, value: number): void {
+    this.density[this.terrain.index(x, y)] = Math.min(1, Math.max(0, value));
+  }
+
   /** Un pas d'écologie (tous les FLORA_INTERVAL ticks). */
   update(): void {
     const terrain = this.terrain;

@@ -12,6 +12,7 @@ import { RainPower } from "../powers/RainPower";
 import { TerraformPower } from "../powers/TerraformPower";
 import type { TerrainGrid } from "../terrain/TerrainGrid";
 import { AgentSystem } from "../agents/AgentSystem";
+import { FaunaSystem } from "../ecology/FaunaSystem";
 import { FLORA_INTERVAL, FloraSystem } from "../ecology/FloraSystem";
 import { seasonalOffset } from "../weather/seasons";
 import { WEATHER_INTERVAL, WeatherSystem } from "../weather/WeatherSystem";
@@ -43,6 +44,7 @@ export class Simulation {
   readonly progression: ProgressionSystem;
   readonly weather: WeatherSystem;
   readonly flora: FloraSystem;
+  readonly fauna: FaunaSystem;
   readonly agents: AgentSystem;
   /** Config effective du monde — nécessaire à la sauvegarde (seed + deltas). */
   readonly worldConfig: { seed: number; width: number; height: number; seaLevel: number };
@@ -65,6 +67,7 @@ export class Simulation {
     this.powers.register(new RainPower());
     this.weather = new WeatherSystem(this.terrain, this.rng);
     this.flora = new FloraSystem(this.terrain, this.rng);
+    this.fauna = new FaunaSystem(this.terrain, this.flora, this.rng);
     this.agents = new AgentSystem(this.terrain, this.flora, this.rng, this.bus);
     this.applySeasonalOffset();
     this.flora.setSeason(this.clock.season);
@@ -92,6 +95,7 @@ export class Simulation {
         sim.bus.emit("flora:updated", {});
       },
     });
+    this.scheduler.add({ id: "fauna", update: (sim) => sim.fauna.update(sim.clock.tick) });
     this.scheduler.add({
       id: "agents",
       update: (sim) => {

@@ -67,6 +67,8 @@ function boot(): void {
       "models/characters/prehistoric-man.glb",
       "models/characters/prehistoric-woman.glb",
     ]);
+    if (sim.fauna.count === 0) sim.fauna.populate(80, 12); // herbivores, prédateurs
+    void renderer.enableFauna(sim, ["models/animals/Horse.glb", "models/animals/Fox.glb"]);
   }
 
   // Mode validation des modèles 3D : ?showcase=1 pose personnages et animaux

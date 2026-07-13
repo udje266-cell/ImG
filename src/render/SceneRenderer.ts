@@ -18,6 +18,7 @@ import {
 } from "three";
 import type { Simulation } from "../sim/world/Simulation";
 import { CameraRig } from "./CameraRig";
+import { FaunaLayer } from "./FaunaLayer";
 import { ForestLayer } from "./ForestLayer";
 import { InhabitantsLayer } from "./InhabitantsLayer";
 import { Showcase } from "./Showcase";
@@ -56,6 +57,7 @@ export class SceneRenderer {
   private showcase: Showcase | null = null;
   private forest: ForestLayer | null = null;
   private inhabitants: InhabitantsLayer | null = null;
+  private faunaLayer: FaunaLayer | null = null;
   private lastFrameAt: number | null = null;
 
   constructor(
@@ -193,6 +195,11 @@ export class SceneRenderer {
     this.inhabitants = await InhabitantsLayer.create(sim, urls, (mesh) => this.scene.add(mesh));
   }
 
+  /** Charge le rendu instancié de la faune ([herbivore, prédateur]). */
+  async enableFauna(sim: Simulation, urls: [string, string]): Promise<void> {
+    this.faunaLayer = await FaunaLayer.create(sim, urls, (mesh) => this.scene.add(mesh));
+  }
+
   /** Nombre d'habitants simulés (-1 si non initialisés) — debug. */
   get inhabitantCount(): number {
     return this.inhabitants ? this.sim.agents.count : -1;
@@ -237,6 +244,7 @@ export class SceneRenderer {
     this.weatherLayer.update();
     this.forest?.refresh();
     this.inhabitants?.update();
+    this.faunaLayer?.update();
 
     this.rig.update();
     this.renderer.render(this.scene, this.rig.camera);
