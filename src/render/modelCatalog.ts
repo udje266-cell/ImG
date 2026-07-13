@@ -10,7 +10,7 @@
 export interface ModelDef {
   id: string;
   url: string;
-  category: "character" | "animal";
+  category: "character" | "animal" | "prop";
   targetHeight: number;
   clipHint?: string;
   /** Créature volante : posée en l'air (tuiles au-dessus du sol) au showcase. */
@@ -30,4 +30,7 @@ export const MODEL_CATALOG: readonly ModelDef[] = [
   { id: "flamingo", url: "models/animals/Flamingo.glb", category: "animal", targetHeight: 0.9, flyHeight: 2.5 },
   { id: "parrot", url: "models/animals/Parrot.glb", category: "animal", targetHeight: 0.5, flyHeight: 2 },
   { id: "stork", url: "models/animals/Stork.glb", category: "animal", targetHeight: 1.1 },
+  // Props décoratifs (modèles Tripo fournis, décimés via tools/decimate-model.mjs).
+  { id: "tree", url: "models/props/tree.glb", category: "prop", targetHeight: 4 },
+  { id: "terrain-diorama", url: "models/props/terrain-diorama.glb", category: "prop", targetHeight: 3 },
 ];

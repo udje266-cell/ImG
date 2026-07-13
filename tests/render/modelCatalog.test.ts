@@ -24,16 +24,18 @@ describe("MODEL_CATALOG", () => {
     }
   });
 
-  it("target heights are sane (0 < h <= 3 tiles)", () => {
+  it("target heights are sane (creatures <= 3 tiles, props <= 12)", () => {
     for (const def of MODEL_CATALOG) {
       expect(def.targetHeight, def.id).toBeGreaterThan(0);
-      expect(def.targetHeight, def.id).toBeLessThanOrEqual(3);
+      const max = def.category === "prop" ? 12 : 3;
+      expect(def.targetHeight, def.id).toBeLessThanOrEqual(max);
     }
   });
 
-  it("contains both characters and animals", () => {
+  it("contains characters, animals and props", () => {
     const categories = new Set(MODEL_CATALOG.map((d) => d.category));
     expect(categories.has("character")).toBe(true);
     expect(categories.has("animal")).toBe(true);
+    expect(categories.has("prop")).toBe(true);
   });
 });
