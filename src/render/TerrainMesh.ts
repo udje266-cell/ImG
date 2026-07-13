@@ -1,9 +1,11 @@
-import { BufferAttribute, BufferGeometry, Mesh, MeshLambertMaterial } from "three";
+import { BufferAttribute, BufferGeometry, Mesh } from "three";
 import type { EventBus } from "../core/events/EventBus";
 import type { GameEvents } from "../sim/events";
+import { Biome } from "../sim/worldgen/biomes";
 import { CHUNK_SIZE, type TerrainGrid } from "../sim/terrain/TerrainGrid";
 import { blendedLandColor, DEEP_WATER_FLOOR, lerpColor, type Rgb, SAND_COLOR } from "./biomePalette";
 import { sampleHeightBilinear } from "./heightSampler";
+import { createTerrainMaterial } from "./TerrainMaterial";
 import { landLayer, LAYER_STEP } from "./terraces";
 
 /** World units of height per normalised simulation height unit. */
@@ -75,6 +77,8 @@ export class TerrainMesh {
   private readonly geometry: BufferGeometry;
   private readonly positions: Float32Array;
   private readonly colors: Float32Array;
+  /** Poids de matière par sommet : [grass, sand, rock, dirt] (splatting). */
+  private readonly splat: Float32Array;
   private readonly vertsX: number;
   private readonly vertsY: number;
 
@@ -87,6 +91,7 @@ export class TerrainMesh {
     const vertexCount = this.vertsX * this.vertsY;
     this.positions = new Float32Array(vertexCount * 3);
     this.colors = new Float32Array(vertexCount * 3);
+    this.splat = new Float32Array(vertexCount * 4);
 
     for (let vy = 0; vy < this.vertsY; vy++) {
       for (let vx = 0; vx < this.vertsX; vx++) {
@@ -114,14 +119,13 @@ export class TerrainMesh {
     this.geometry = new BufferGeometry();
     this.geometry.setAttribute("position", new BufferAttribute(this.positions, 3));
     this.geometry.setAttribute("color", new BufferAttribute(this.colors, 3));
+    this.geometry.setAttribute("splat", new BufferAttribute(this.splat, 4));
     this.geometry.setIndex(new BufferAttribute(indices, 1));
     this.geometry.computeVertexNormals();
 
-    // Smooth shading (normales lissées) : les rebords des terrasses deviennent
-    // doux et galbés au lieu de facettes dures — les normales sont recalculées
-    // après chaque terraforming.
-    const material = new MeshLambertMaterial({ vertexColors: true, flatShading: false });
-    this.mesh = new Mesh(this.geometry, material);
+    // Terrain texturé : 4 matières splattées (biome/pente/altitude) + normal
+    // maps, sur les normales lissées, la couleur par sommet servant de teinte.
+    this.mesh = new Mesh(this.geometry, createTerrainMaterial());
 
     bus.on("terrain:modified", ({ chunkIds }) => this.updateChunks(chunkIds));
   }
@@ -144,6 +148,7 @@ export class TerrainMesh {
     }
     (this.geometry.getAttribute("position") as BufferAttribute).needsUpdate = true;
     (this.geometry.getAttribute("color") as BufferAttribute).needsUpdate = true;
+    (this.geometry.getAttribute("splat") as BufferAttribute).needsUpdate = true;
     // Normales lissées à recalculer après un changement de relief (smooth shading).
     this.geometry.computeVertexNormals();
     this.geometry.computeBoundingSphere();
@@ -189,5 +194,51 @@ export class TerrainMesh {
     this.colors[i] = Math.min(255, r) / 255;
     this.colors[i + 1] = Math.min(255, g) / 255;
     this.colors[i + 2] = Math.min(255, b) / 255;
+
+    this.writeSplat(vx, vy, h);
+  }
+
+  /**
+   * Poids de matière [grass, sand, rock, dirt] par sommet, selon biome, pente
+   * et altitude. Le shader (`TerrainMaterial`) les normalise et mélange les 4
+   * textures. Sous l'eau : fond sableux.
+   */
+  private writeSplat(vx: number, vy: number, h: number): void {
+    const terrain = this.terrain;
+    const s = (vy * this.vertsX + vx) * 4;
+
+    if (h < terrain.seaLevel) {
+      this.splat[s] = 0;
+      this.splat[s + 1] = 1; // sand
+      this.splat[s + 2] = 0;
+      this.splat[s + 3] = 0;
+      return;
+    }
+
+    const above = h - terrain.seaLevel;
+    const tileX = Math.min(terrain.width - 1, Math.floor(vx));
+    const tileY = Math.min(terrain.height - 1, Math.floor(vy));
+    const biome = terrain.biomeAt(tileX, tileY);
+    const green =
+      biome === Biome.Grassland ||
+      biome === Biome.TemperateForest ||
+      biome === Biome.TropicalForest ||
+      biome === Biome.Taiga;
+    const dry = biome === Biome.Desert || biome === Biome.Steppe || biome === Biome.Savanna;
+
+    // Pente locale (en unités de terrasse) via les voisins.
+    const hx = sampleHeightBilinear(terrain, vx + 1, vy);
+    const hy = sampleHeightBilinear(terrain, vx, vy + 1);
+    const slope = (Math.abs(hx - h) + Math.abs(hy - h)) / LAYER_STEP;
+
+    const grass = green ? 1 : 0.12;
+    const sand = biome === Biome.Beach || above < 0.02 ? 1.4 : 0;
+    const rock = smoothstep((slope - 0.55) / 0.8) * 1.3 + smoothstep((above - 0.26) / 0.16);
+    const dirt = 0.22 + (dry ? 0.7 : 0) + smoothstep((slope - 0.3) / 0.6) * 0.4;
+
+    this.splat[s] = grass;
+    this.splat[s + 1] = sand;
+    this.splat[s + 2] = rock;
+    this.splat[s + 3] = dirt;
   }
 }
