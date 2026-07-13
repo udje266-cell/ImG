@@ -1,14 +1,18 @@
 import {
-  AmbientLight,
+  ACESFilmicToneMapping,
   Color,
   DirectionalLight,
+  Fog,
+  HemisphereLight,
   Mesh,
   MeshBasicMaterial,
   MeshLambertMaterial,
+  PCFSoftShadowMap,
   PlaneGeometry,
   Raycaster,
   RingGeometry,
   Scene,
+  SRGBColorSpace,
   Vector2,
   WebGLRenderer,
 } from "three";
@@ -20,11 +24,13 @@ import { Showcase } from "./Showcase";
 import { TerrainMesh } from "./TerrainMesh";
 import { WeatherLayer } from "./WeatherLayer";
 
-const DAY_SKY = new Color("#a9d7ef");
+const DAY_SKY = new Color("#8ec7ef");
 const NIGHT_SKY = new Color("#0b1026");
+const DUSK_SKY = new Color("#e8a878");
+const GROUND_BOUNCE = new Color("#8a7a55"); // lumière rebondie chaude du sol
 
-const DAY_SUN_INTENSITY = 2.4;
-const NIGHT_AMBIENT = 0.18;
+const DAY_SUN_INTENSITY = 3.1;
+const NIGHT_HEMI = 0.12;
 
 /**
  * 3D scene orchestrator (docs/TDD.md §4.5): owns the WebGL renderer, the
@@ -37,7 +43,8 @@ export class SceneRenderer {
   private readonly renderer: WebGLRenderer;
   private readonly scene = new Scene();
   private readonly sun: DirectionalLight;
-  private readonly ambient: AmbientLight;
+  private readonly hemi: HemisphereLight;
+  private readonly fog: Fog;
   private readonly terrainMesh: TerrainMesh;
   private readonly weatherLayer: WeatherLayer;
   private readonly brushRing: Mesh;
@@ -56,11 +63,23 @@ export class SceneRenderer {
     private readonly sim: Simulation,
   ) {
     this.renderer = new WebGLRenderer({ canvas, antialias: true });
+    // Rendu « cinématographique » : tone-mapping ACES + sortie sRGB + ombres douces.
+    this.renderer.outputColorSpace = SRGBColorSpace;
+    this.renderer.toneMapping = ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = PCFSoftShadowMap;
 
     const { width, height } = sim.terrain;
     this.rig = new CameraRig(1, width / 2, height / 2);
 
+    // Brume atmosphérique pour la profondeur (les lointains se fondent au ciel).
+    this.fog = new Fog(DAY_SKY.getHex(), width * 0.9, width * 2.4);
+    this.scene.fog = this.fog;
+
     this.terrainMesh = new TerrainMesh(sim.terrain, sim.bus);
+    this.terrainMesh.mesh.receiveShadow = true;
+    this.terrainMesh.mesh.castShadow = true;
     this.scene.add(this.terrainMesh.mesh);
 
     this.weatherLayer = new WeatherLayer(
@@ -71,17 +90,32 @@ export class SceneRenderer {
 
     const water = new Mesh(
       new PlaneGeometry(width, height),
-      new MeshLambertMaterial({ color: 0x2f8fc4, transparent: true, opacity: 0.55 }),
+      new MeshLambertMaterial({ color: 0x3fa8d8, transparent: true, opacity: 0.72 }),
     );
     water.rotation.x = -Math.PI / 2;
-    water.position.set(width / 2, 0, height / 2);
+    water.position.set(width / 2, 0.15, height / 2);
+    water.receiveShadow = true;
     this.scene.add(water);
 
-    this.sun = new DirectionalLight(0xfff3df, DAY_SUN_INTENSITY);
+    // Soleil directionnel chaud, projetant des ombres douces sur le relief.
+    this.sun = new DirectionalLight(0xfff0d6, DAY_SUN_INTENSITY);
     this.sun.target.position.set(width / 2, 0, height / 2);
+    this.sun.castShadow = true;
+    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.bias = -0.0006;
+    const shadowCam = this.sun.shadow.camera;
+    const extent = Math.max(width, height) * 0.62;
+    shadowCam.left = -extent;
+    shadowCam.right = extent;
+    shadowCam.top = extent;
+    shadowCam.bottom = -extent;
+    shadowCam.near = 1;
+    shadowCam.far = Math.max(width, height) * 3.2;
     this.scene.add(this.sun, this.sun.target);
-    this.ambient = new AmbientLight(0xdfeaff, 0.5);
-    this.scene.add(this.ambient);
+
+    // Lumière hémisphérique : ciel froid en haut, rebond chaud du sol en bas.
+    this.hemi = new HemisphereLight(DAY_SKY.getHex(), GROUND_BOUNCE.getHex(), 0.9);
+    this.scene.add(this.hemi);
 
     this.brushRing = new Mesh(
       new RingGeometry(0.85, 1, 48),
@@ -179,16 +213,25 @@ export class SceneRenderer {
     // Sun wheels around the world with the simulation clock; noon overhead.
     const angle = (sim.clock.timeOfDay - 0.25) * Math.PI * 2;
     const radius = Math.max(sim.terrain.width, sim.terrain.height) * 1.4;
+    const elevation = Math.sin(angle);
     this.sun.position.set(
       this.sun.target.position.x + Math.cos(angle) * radius,
-      Math.sin(angle) * radius,
+      elevation * radius,
       this.sun.target.position.z + radius * 0.35,
     );
     const daylight = sim.clock.daylight;
-    this.sun.intensity = DAY_SUN_INTENSITY * Math.max(0, daylight) ** 1.2;
-    this.ambient.intensity = NIGHT_AMBIENT + 0.45 * daylight;
+
+    // Soleil : chaud et doré près de l'horizon (aube/couchant), blanc à midi.
+    const lowSun = 1 - Math.min(1, Math.max(0, elevation) * 2.2); // 1 rasant → 0 haut
+    this.sun.color.copy(DUSK_SKY).lerp(new Color(0xfff0d6), 1 - lowSun);
+    this.sun.intensity = DAY_SUN_INTENSITY * Math.max(0.02, daylight) ** 1.1;
+    this.hemi.intensity = NIGHT_HEMI + 0.85 * daylight;
+
+    // Ciel : nuit → aube dorée → plein jour, et la brume s'y accorde.
     this.skyColor.copy(NIGHT_SKY).lerp(DAY_SKY, daylight);
+    if (daylight > 0.05) this.skyColor.lerp(DUSK_SKY, lowSun * 0.5 * daylight);
     this.scene.background = this.skyColor;
+    this.fog.color.copy(this.skyColor);
 
     this.weatherLayer.update();
     this.forest?.refresh();

@@ -102,11 +102,12 @@ export class TerrainMesh {
     this.geometry.setAttribute("position", new BufferAttribute(this.positions, 3));
     this.geometry.setAttribute("color", new BufferAttribute(this.colors, 3));
     this.geometry.setIndex(new BufferAttribute(indices, 1));
-    // Flat shading derives face normals in the fragment shader, so vertex
-    // normals never need recomputing after terraform updates.
     this.geometry.computeVertexNormals();
 
-    const material = new MeshLambertMaterial({ vertexColors: true, flatShading: true });
+    // Smooth shading (normales lissées) : les rebords des terrasses deviennent
+    // doux et galbés au lieu de facettes dures — les normales sont recalculées
+    // après chaque terraforming.
+    const material = new MeshLambertMaterial({ vertexColors: true, flatShading: false });
     this.mesh = new Mesh(this.geometry, material);
 
     bus.on("terrain:modified", ({ chunkIds }) => this.updateChunks(chunkIds));
@@ -130,6 +131,8 @@ export class TerrainMesh {
     }
     (this.geometry.getAttribute("position") as BufferAttribute).needsUpdate = true;
     (this.geometry.getAttribute("color") as BufferAttribute).needsUpdate = true;
+    // Normales lissées à recalculer après un changement de relief (smooth shading).
+    this.geometry.computeVertexNormals();
     this.geometry.computeBoundingSphere();
   }
 

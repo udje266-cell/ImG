@@ -55,6 +55,8 @@ export class ForestLayer {
     this.mesh = new InstancedMesh(geometry, material, MAX_TREES);
     this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     this.mesh.frustumCulled = false;
+    this.mesh.castShadow = true;
+    this.mesh.receiveShadow = true;
     this.mesh.count = 0;
     addToScene(this.mesh);
     sim.bus.on("flora:updated", () => {

@@ -105,7 +105,8 @@ ImG/
 
 ### 4.5 Rendu 3D (`render`, Three.js — ADR 0002)
 - `TerrainMesh` : maillage heightmap (grille de sommets aux coins de tuiles). Hauteur des sommets en **terrasses profil « plateau + rebord arrondi »** (`terraceProfile`, style Godus) : plat sur `PLATEAU_FRAC` de chaque strate puis montée smoothstep vers la suivante → courbes de niveau fluides plutôt que marches verticales. Strates épaisses (`LAYER_STEP` = 0,05) pour des paliers larges couvrant plusieurs tuiles. **Couleurs par sommet** (palette pastel par biome fondue, bandes claires/sombres par strate, fonds marins sable→bleu). Flat shading, zéro texture. À `terrain:modified`, seuls les sommets des chunks sales (+ bord) sont recalculés. `groundHeightAt` (partagé avec forêts/objets) applique le même profil.
-- `SceneRenderer` : scène, soleil directionnel + hémisphérique pilotés par `clock.timeOfDay` (couleur du ciel incluse), plan d'eau translucide au niveau de la mer, raycasting écran→tuile pour la sculpture.
+- `SceneRenderer` : rendu « cinématographique » — **tone-mapping ACES + sortie sRGB**, **ombres douces PCF** (shadow map 2048, cadrées sur le monde), **soleil directionnel chaud** (doré à l'aube/couchant) + **lumière hémisphérique** (ciel froid / rebond chaud du sol) pilotés par `clock.timeOfDay`, **brume** accordée au ciel pour la profondeur, plan d'eau translucide. Terrain, arbres et habitants projettent/reçoivent les ombres. Raycasting écran→tuile pour la sculpture.
+- `TerrainMesh` : **normales lissées** (smooth shading, recalculées après terraforming) → rebords de terrasses galbés au lieu de facettes dures.
 - `CameraRig` : caméra perspective en vue divine (cible au sol, distance, azimut) ; pan/zoom/rotation ; conversions écran↔monde par raycast.
 - L'échantillonneur bilinéaire (`heightSampler.ts`) sert aux hauteurs des coins de tuiles ; `groundHeightAt` (exporté par `TerrainMesh`) est la vérité unique de « poser quelque chose au sol ».
 

@@ -41,6 +41,7 @@ export class InhabitantsLayer {
       const mesh = new InstancedMesh(geometries[m]!, materials[m]!, MAX_AGENTS);
       mesh.instanceMatrix.setUsage(DynamicDrawUsage);
       mesh.frustumCulled = false;
+      mesh.castShadow = true;
       mesh.count = 0;
       this.meshes.push(mesh);
       addToScene(mesh);
