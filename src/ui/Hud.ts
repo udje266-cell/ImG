@@ -25,6 +25,7 @@ export class Hud {
   private readonly faithVal: HTMLElement;
   private readonly faithBar: HTMLElement;
   private readonly devotionVal: HTMLElement;
+  private readonly populationVal: HTMLElement;
   private readonly clock: HTMLElement;
   private readonly flashEl: HTMLElement;
   private flashUntil = 0;
@@ -33,6 +34,7 @@ export class Hud {
     this.faithVal = root.getElementById("faith-val")!;
     this.faithBar = root.getElementById("faith-bar")!;
     this.devotionVal = root.getElementById("devotion-val")!;
+    this.populationVal = root.getElementById("population-val")!;
     this.clock = root.getElementById("clock")!;
     this.flashEl = root.getElementById("flash")!;
   }
@@ -54,6 +56,7 @@ export class Hud {
     this.faithVal.textContent = String(Math.floor(sim.faith.current));
     this.faithBar.style.width = `${(sim.faith.current / sim.faith.max) * 100}%`;
     this.devotionVal.textContent = String(Math.floor(sim.progression.devotion));
+    this.populationVal.textContent = String(sim.agents.count);
     this.clock.textContent =
       `An ${clock.year + 1} · ${SEASON_LABELS[clock.season]} j${clock.dayOfSeason + 1} · ${hours}:${minutes}  ${speed}`;
 

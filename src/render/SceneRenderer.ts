@@ -15,6 +15,7 @@ import {
 import type { Simulation } from "../sim/world/Simulation";
 import { CameraRig } from "./CameraRig";
 import { ForestLayer } from "./ForestLayer";
+import { InhabitantsLayer } from "./InhabitantsLayer";
 import { Showcase } from "./Showcase";
 import { TerrainMesh } from "./TerrainMesh";
 import { WeatherLayer } from "./WeatherLayer";
@@ -47,11 +48,12 @@ export class SceneRenderer {
   private viewH = 1;
   private showcase: Showcase | null = null;
   private forest: ForestLayer | null = null;
+  private inhabitants: InhabitantsLayer | null = null;
   private lastFrameAt: number | null = null;
 
   constructor(
     readonly canvas: HTMLCanvasElement,
-    sim: Simulation,
+    private readonly sim: Simulation,
   ) {
     this.renderer = new WebGLRenderer({ canvas, antialias: true });
 
@@ -151,6 +153,16 @@ export class SceneRenderer {
     await this.weatherLayer.useModel(cloudUrl);
   }
 
+  /** Charge le rendu instancié des habitants. */
+  async enableInhabitants(sim: Simulation, urls: string[]): Promise<void> {
+    this.inhabitants = await InhabitantsLayer.create(sim, urls, (mesh) => this.scene.add(mesh));
+  }
+
+  /** Nombre d'habitants simulés (-1 si non initialisés) — debug. */
+  get inhabitantCount(): number {
+    return this.inhabitants ? this.sim.agents.count : -1;
+  }
+
   /** Nombre d'arbres instanciés (-1 si la forêt n'est pas chargée) — debug. */
   get forestTreeCount(): number {
     return this.forest?.count ?? -1;
@@ -180,6 +192,7 @@ export class SceneRenderer {
 
     this.weatherLayer.update();
     this.forest?.refresh();
+    this.inhabitants?.update();
 
     this.rig.update();
     this.renderer.render(this.scene, this.rig.camera);

@@ -11,6 +11,7 @@ import { ProgressionSystem } from "../powers/ProgressionSystem";
 import { RainPower } from "../powers/RainPower";
 import { TerraformPower } from "../powers/TerraformPower";
 import type { TerrainGrid } from "../terrain/TerrainGrid";
+import { AgentSystem } from "../agents/AgentSystem";
 import { FLORA_INTERVAL, FloraSystem } from "../ecology/FloraSystem";
 import { seasonalOffset } from "../weather/seasons";
 import { WEATHER_INTERVAL, WeatherSystem } from "../weather/WeatherSystem";
@@ -42,6 +43,7 @@ export class Simulation {
   readonly progression: ProgressionSystem;
   readonly weather: WeatherSystem;
   readonly flora: FloraSystem;
+  readonly agents: AgentSystem;
   /** Config effective du monde — nécessaire à la sauvegarde (seed + deltas). */
   readonly worldConfig: { seed: number; width: number; height: number; seaLevel: number };
   private readonly scheduler: Scheduler<Simulation>;
@@ -63,6 +65,7 @@ export class Simulation {
     this.powers.register(new RainPower());
     this.weather = new WeatherSystem(this.terrain, this.rng);
     this.flora = new FloraSystem(this.terrain, this.rng);
+    this.agents = new AgentSystem(this.terrain, this.flora, this.rng, this.bus);
     this.applySeasonalOffset();
     this.flora.setSeason(this.clock.season);
 
@@ -89,7 +92,14 @@ export class Simulation {
         sim.bus.emit("flora:updated", {});
       },
     });
-    // Future systems (agents...) register here.
+    this.scheduler.add({
+      id: "agents",
+      update: (sim) => {
+        sim.agents.update(sim.clock.tick);
+        // Les croyants génèrent de la Foi : la boucle est bouclée (GDD §2).
+        sim.faith.add(sim.agents.faithIncome());
+      },
+    });
   }
 
   /** Durée du dernier passage de chaque système (ms) — overlay de perf. */

@@ -58,10 +58,15 @@ function boot(): void {
     if (power === "rain") hud.flash("Pouvoir débloqué : Pluie 🌧️");
   });
 
-  // Forêts + nuages 3D (hors showcase, qui a sa propre mise en scène).
+  // Forêts + nuages 3D + habitants (hors showcase, qui a sa propre mise en scène).
   if (!params.has("showcase")) {
     void renderer.enableForest(sim, "models/props/tree.glb");
     void renderer.enableCloudModel("models/props/cloud.glb");
+    if (sim.agents.count === 0) sim.agents.populate(60); // peuplement de départ
+    void renderer.enableInhabitants(sim, [
+      "models/characters/prehistoric-man.glb",
+      "models/characters/prehistoric-woman.glb",
+    ]);
   }
 
   // Mode validation des modèles 3D : ?showcase=1 pose personnages et animaux

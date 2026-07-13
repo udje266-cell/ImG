@@ -132,6 +132,12 @@ ImG/
 - Densité de végétation ∈ [0,1] par tuile. Capacité = capacité du biome × adéquation de l'humidité ; croissance logistique vers la capacité, régression au-dessus (sécheresse/gel), essaimage vers les 4 voisins, germination spontanée rare. Rien ne pousse en hiver (facteur saisonnier = 0). Déterministe (stream "flora"), cadencée `FLORA_INTERVAL` (10 ticks), émet `flora:updated`.
 - Rendu : `ForestLayer` — `InstancedMesh` unique de l'arbre décimé, instances placées sur les tuiles dont la densité dépasse un seuil (placement déterministe par RNG de seed), reconstruit uniquement sur `flora:updated`. Un draw call ; cap `MAX_TREES` (1200). LOD impostor à prévoir pour les forêts denses.
 
+### 4.6 quater Habitants (`sim/agents/AgentSystem.ts` — phase 4)
+- Stores SoA (tableaux parallèles indexés par agent) : position, faim, fatigue, ferveur, piété, objectif, cible, foyer. Déterministe (stream "agents"), cadencé chaque tick ; l'IA utilitaire n'est ré-évaluée que tous les `AGENT_DECISION_INTERVAL` ticks par agent (LOD décalé pour lisser le coût).
+- IA : utilités concurrentes (faim→forage, fatigue→repos, piété×ferveur→prière, défaut→errance) → objectif ; l'action déplace vers la cible et résout à l'arrivée (manger la flore, se reposer, prier). **Aucun contrôle direct du joueur** : seules les pondérations seront influençables (murmures).
+- Économie : `faithIncome()` = Σ ferveur × constante ; la Simulation l'ajoute à la Foi chaque tick → boucle des croyants (GDD §2).
+- Rendu : `InhabitantsLayer` — un `InstancedMesh` par modèle (homme/femme), repositionné depuis `snapshot()` chaque frame. Perf : impostors/index spatial à venir pour viser 10 000 agents.
+
 ### 4.7 Progression divine (`sim/powers/ProgressionSystem.ts` — v1)
 - La **Dévotion** (cumul à vie de la Foi dépensée en miracles) franchit des seuils déclarés dans `POWER_UNLOCK_THRESHOLDS` → événement `progression:powerUnlocked`.
 - `PowerSystem` rejette (`reason: "locked"`) tout intent d'un pouvoir non débloqué — atomique, aucun état partiel.

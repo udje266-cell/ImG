@@ -12,10 +12,11 @@ import { generateWorld } from "../worldgen/WorldGenerator";
  *
  * v1 → v2 : ajout des deltas d'humidité et de l'état météo (nuages, vent,
  * état du stream RNG "weather"). Une sauvegarde v1 se charge sans météo.
- * v2 → v3 : ajout de la flore (densité + état du stream RNG "flora"). Une
- * sauvegarde plus ancienne se charge avec la flore ensemencée par la seed.
+ * v2 → v3 : ajout de la flore (densité + état du stream RNG "flora").
+ * v3 → v4 : ajout des habitants (positions, besoins, ferveur, foyers, RNG).
+ * Une sauvegarde plus ancienne se charge sans habitants (monde à repeupler).
  */
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 interface CellDeltas {
   /** Indices (y * width + x) des cellules modifiées vs la baseline. */
@@ -78,7 +79,14 @@ export interface SaveDataV3 {
   flora: FloraState;
 }
 
-export type AnySaveData = SaveDataV1 | SaveDataV2 | SaveDataV3;
+type AgentsState = ReturnType<Simulation["agents"]["serialize"]>;
+
+export interface SaveDataV4 extends Omit<SaveDataV3, "version"> {
+  version: 4;
+  agents: AgentsState;
+}
+
+export type AnySaveData = SaveDataV1 | SaveDataV2 | SaveDataV3 | SaveDataV4;
 
 function diff(current: Float32Array, baseline: Float32Array): CellDeltas {
   const indices: number[] = [];
@@ -93,7 +101,7 @@ function diff(current: Float32Array, baseline: Float32Array): CellDeltas {
 }
 
 /** Capture l'état complet de la simulation en données JSON-sérialisables. */
-export function serializeSimulation(sim: Simulation): SaveDataV3 {
+export function serializeSimulation(sim: Simulation): SaveDataV4 {
   const { seed, width, height, seaLevel } = sim.worldConfig;
   const baseline = generateWorld(sim.worldConfig);
   return {
@@ -105,6 +113,7 @@ export function serializeSimulation(sim: Simulation): SaveDataV3 {
     tick: sim.clock.tick,
     faith: sim.faith.current,
     devotion: sim.progression.devotion,
+    agents: sim.agents.serialize(),
     heightDeltas: diff(sim.terrain.heightMap, baseline.heightMap),
     moistureDeltas: diff(sim.terrain.moisture, baseline.moisture),
     weather: sim.weather.serialize(),
@@ -133,11 +142,14 @@ function applyDeltas(
 
 const EMPTY_WEATHER: WeatherState = { cloud: [], windAngle: 0, advectionX: 0, advectionY: 0, rngState: 0 };
 const EMPTY_FLORA: FloraState = { density: [], rngState: 0 };
+const EMPTY_AGENTS: AgentsState = {
+  px: [], py: [], hunger: [], fatigue: [], fervour: [], piety: [], homeX: [], homeY: [], rngState: 0,
+};
 
-/** Migre une sauvegarde v1 (sans météo ni flore) vers la structure courante. */
-function migrateV1(data: SaveDataV1): SaveDataV3 {
+/** Migre une sauvegarde v1 (sans météo/flore/habitants) vers la structure courante. */
+function migrateV1(data: SaveDataV1): SaveDataV4 {
   return {
-    version: 3,
+    version: 4,
     seed: data.seed,
     width: data.width,
     height: data.height,
@@ -149,12 +161,18 @@ function migrateV1(data: SaveDataV1): SaveDataV3 {
     moistureDeltas: { indices: [], values: [] },
     weather: EMPTY_WEATHER,
     flora: EMPTY_FLORA,
+    agents: EMPTY_AGENTS,
   };
 }
 
-/** Migre une sauvegarde v2 (sans flore) vers la structure courante. */
-function migrateV2(data: SaveDataV2): SaveDataV3 {
-  return { ...data, version: 3, flora: EMPTY_FLORA };
+/** Migre une sauvegarde v2 (sans flore/habitants) vers la structure courante. */
+function migrateV2(data: SaveDataV2): SaveDataV4 {
+  return { ...data, version: 4, flora: EMPTY_FLORA, agents: EMPTY_AGENTS };
+}
+
+/** Migre une sauvegarde v3 (sans habitants) vers la structure courante. */
+function migrateV3(data: SaveDataV3): SaveDataV4 {
+  return { ...data, version: 4, agents: EMPTY_AGENTS };
 }
 
 /**
@@ -162,10 +180,11 @@ function migrateV2(data: SaveDataV2): SaveDataV3 {
  * est passé tel quel au constructeur (injection de l'horloge de mesure).
  */
 export function loadSimulation(raw: AnySaveData, options: { now?: () => number } = {}): Simulation {
-  let data: SaveDataV3;
+  let data: SaveDataV4;
   if (raw.version === 1) data = migrateV1(raw);
   else if (raw.version === 2) data = migrateV2(raw);
-  else if (raw.version === 3) data = raw;
+  else if (raw.version === 3) data = migrateV3(raw);
+  else if (raw.version === 4) data = raw;
   else throw new Error(`Save version ${(raw as { version: number }).version} not supported`);
 
   const sim = new Simulation({
@@ -183,9 +202,10 @@ export function loadSimulation(raw: AnySaveData, options: { now?: () => number }
   sim.faith.current = Math.min(sim.faith.max, data.faith);
   sim.progression.restoreDevotion(data.devotion);
 
-  // Restaure météo et flore si présentes (absentes pour une sauvegarde ancienne).
+  // Restaure météo, flore et habitants si présents (absents pour une sauvegarde ancienne).
   if (data.weather.cloud.length > 0) sim.weather.restore(data.weather);
   if (data.flora.density.length > 0) sim.flora.restore(data.flora);
+  if (data.agents.px.length > 0) sim.agents.restore(data.agents);
 
   // Ré-applique la saison du tick chargé, puis re-classifie.
   sim.reapplySeasonalOffset();

@@ -57,10 +57,11 @@ Le MVP (phases 0–1) doit prouver les fondations, pas empiler des features :
 - À venir : faune (herbivores/prédateurs, reproduction, migration), ressources renouvelables/finies, pouvoirs « faire pousser une forêt » et « créer une espèce animale » (cahier des charges §3).
 - **Optimisation identifiée** : l'arbre décimé fait ~7,9 k triangles (feuilles = îlots séparés, non réductibles par simplification) — trop lourd pour des forêts très denses. Prévoir des **impostors/billboards** pour le LOD lointain (phase Optimisation).
 
-### Phase 4 — Les habitants (jalon critique de perf)
-- Agents : besoins, Utility AI, perception, mémoire ; stores SoA + index spatial ; pathfinding hiérarchique budgété.
-- Objectif : **10 000 agents à 60 fps**. Foyers, récolte, construction d'abris.
-- La Foi devient réellement générée par les croyants.
+### Phase 4 — Les habitants (première itération ✅)
+- **`AgentSystem`** : habitants préhistoriques avec besoins (faim, fatigue, ferveur), personnalité (piété), IA utilitaire (forage/repos/errance/prière) ré-évaluée en LOD, déplacement vers cibles, foyers. Stores SoA, déterministe (stream "agents").
+- **La Foi est enfin générée par les croyants** (`faithIncome = Σ ferveur × const`) — la boucle du GDD §2 est bouclée.
+- Rendu : `InhabitantsLayer` — habitants instanciés (homme/femme préhistoriques), positionnés depuis le snapshot ; HUD population 👥. Sauvegarde v4.
+- À venir : perception/mémoire, foyers→villages→professions, pathfinding hiérarchique, objectif **10 000 agents à 60 fps** (impostors + index spatial).
 
 ### Phase 5 — Société & économie
 - Villages, professions, stocks, production/consommation, prix émergents, commerce inter-villages.

@@ -1,9 +1,9 @@
 /**
  * Faith: the divine resource (see docs/GDD.md §5.1).
  *
- * MVP: flat passive regeneration. From the religion phase onwards, income
- * will be driven by believers (fervour x population) instead.
- * Balance constants are provisional and will be tuned with playtests.
+ * A small flat regen keeps the world playable before/without believers;
+ * the main income now comes from the inhabitants (fervour × population) via
+ * `add()` (AgentSystem). Balance constants are provisional.
  */
 export interface FaithConfig {
   initial?: number;
@@ -32,8 +32,16 @@ export class FaithSystem {
     return true;
   }
 
-  /** Called once per tick. */
+  /** Add faith (believers' income), capped at max. */
+  add(amount: number): void {
+    if (amount < 0 || !Number.isFinite(amount)) {
+      throw new Error(`FaithSystem.add: invalid amount ${amount}`);
+    }
+    this.current = Math.min(this.max, this.current + amount);
+  }
+
+  /** Called once per tick (base passive regen). */
   update(): void {
-    this.current = Math.min(this.max, this.current + this.regenPerTick);
+    this.add(this.regenPerTick);
   }
 }
