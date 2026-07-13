@@ -6,7 +6,9 @@
  * The step matches TERRAFORM_STRENGTH so one sculpt stroke at the brush
  * centre raises the land by roughly one visible layer.
  */
-export const LAYER_STEP = 0.02;
+// Terrasses épaisses (couvrant plusieurs tuiles) pour de vrais paliers plats
+// façon Godus, au lieu de marches fines sous-résolues sur les pentes raides.
+export const LAYER_STEP = 0.05;
 
 /** 0-based terrace index of a land cell (0 = the layer right above the sea). */
 export function landLayer(height: number, seaLevel: number): number {

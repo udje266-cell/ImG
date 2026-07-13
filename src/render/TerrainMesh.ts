@@ -19,10 +19,27 @@ const DEPTH_RAMP = 0.15;
  * source of truth shared by the mesh and by everything that must stand on
  * the ground (showcase, future agents).
  */
+/**
+ * Profil de terrasse « plateau + rebord arrondi » (style Godus) : dans chaque
+ * strate la hauteur reste plate sur PLATEAU_FRAC, puis monte en douceur
+ * (smoothstep) vers la strate suivante — d'où des courbes de niveau fluides
+ * au lieu de marches verticales anguleuses. `e` est l'altitude en unités de
+ * strate (≥ 0).
+ */
+const PLATEAU_FRAC = 0.72;
+function terraceProfile(e: number): number {
+  const layer = Math.floor(e);
+  const frac = e - layer;
+  if (frac <= PLATEAU_FRAC) return layer;
+  const t = (frac - PLATEAU_FRAC) / (1 - PLATEAU_FRAC);
+  return layer + t * t * (3 - 2 * t); // smoothstep : rebord arrondi
+}
+
 export function groundHeightAt(terrain: TerrainGrid, wx: number, wy: number): number {
   const h = sampleHeightBilinear(terrain, wx, wy);
   if (h < terrain.seaLevel) return (h - terrain.seaLevel) * HEIGHT_SCALE;
-  return (landLayer(h, terrain.seaLevel) + 0.5) * TERRACE_HEIGHT;
+  const e = (h - terrain.seaLevel) / LAYER_STEP;
+  return (terraceProfile(e) + 0.5) * TERRACE_HEIGHT;
 }
 /** Brightness multiplier of the darker stripe on odd terraces (bandes franches). */
 const STRIPE_SHADE = 0.9;
