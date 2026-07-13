@@ -1,86 +1,121 @@
 import {
+  type BufferGeometry,
   Color,
   DynamicDrawUsage,
   InstancedMesh,
-  Matrix4,
+  type Material,
+  Mesh,
   MeshLambertMaterial,
   Object3D,
   PlaneGeometry,
-  Quaternion,
-  Vector3,
 } from "three";
-import type { Simulation } from "../sim/world/Simulation";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { WEATHER_CELL } from "../sim/weather/WeatherSystem";
+import type { Simulation } from "../sim/world/Simulation";
 
 /** Altitude (world units) of the cloud sheet above sea level. */
-const CLOUD_ALTITUDE = 34;
+const CLOUD_ALTITUDE = 42;
 /**
- * Below this cloudiness a cell draws no cloud puff. Kept high so clear skies
- * stay clear and only building weather (>= this) casts clouds — otherwise the
- * many low-cover cells blanket the world in a dull haze.
+ * Below this cloudiness a cell draws no cloud. High threshold => seuls les
+ * amas les plus denses deviennent des nuages, le ciel reste dégagé ailleurs
+ * (évite le ciel couvert oppressant).
  */
-const VISIBLE_THRESHOLD = 0.42;
+const VISIBLE_THRESHOLD = 0.62;
 
-const FAIR_COLOR = new Color("#fbfdff");
-const STORM_COLOR = new Color("#9aa3b4");
+const FAIR_COLOR = new Color("#fdfeff");
+const STORM_COLOR = new Color("#b7bec9");
 
 /**
- * Couche météo (docs/TDD.md §4.5) : une nappe de nuages en `InstancedMesh`
- * (un quad horizontal par cellule météo visible), teintés du blanc au gris
- * orage selon la couverture, et opacité proportionnelle. Lecture seule de la
- * simulation. Un seul draw call pour tous les nuages — budget mobile trivial.
+ * Couche météo (docs/TDD.md §4.5) : un `InstancedMesh` du modèle de nuage
+ * volumétrique (fourni, décimé), une instance par cellule météo au-dessus du
+ * seuil, teintée du blanc au gris orage selon la couverture. Un seul draw
+ * call. Tombe sur un quad plat si le modèle n'est pas encore chargé.
  */
 export class WeatherLayer {
-  readonly mesh: InstancedMesh;
+  private mesh: InstancedMesh;
   private readonly dummy = new Object3D();
-  private readonly matrix = new Matrix4();
-  private readonly position = new Vector3();
-  private readonly quaternion = new Quaternion();
-  private readonly scale = new Vector3();
-  private readonly flat = new Vector3(1, 1, 1);
-  private readonly hidden = new Vector3(0, 0, 0);
+  private readonly tint = new Color();
 
-  constructor(private readonly sim: Simulation) {
-    const weather = sim.weather;
-    const count = weather.cellsX * weather.cellsY;
-    const geometry = new PlaneGeometry(WEATHER_CELL * 1.25, WEATHER_CELL * 1.25);
-    geometry.rotateX(-Math.PI / 2);
-    const material = new MeshLambertMaterial({
-      transparent: true,
-      opacity: 0.7,
-      depthWrite: false,
-      vertexColors: false,
-    });
-    this.mesh = new InstancedMesh(geometry, material, count);
-    this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
-    this.mesh.frustumCulled = false;
-    this.dummy.rotation.set(0, 0, 0);
+  constructor(
+    private readonly sim: Simulation,
+    private readonly addToScene: (mesh: InstancedMesh) => void,
+    private readonly removeFromScene: (mesh: InstancedMesh) => void,
+  ) {
+    // Géométrie de repli (quad plat) jusqu'au chargement du modèle de nuage.
+    const fallback = new PlaneGeometry(WEATHER_CELL * 1.2, WEATHER_CELL * 1.2);
+    fallback.rotateX(-Math.PI / 2);
+    this.mesh = this.buildMesh(fallback, this.defaultMaterial());
+    addToScene(this.mesh);
   }
 
-  /** Met à jour position, échelle et couleur des puffs depuis l'état météo. */
+  private defaultMaterial(): Material {
+    return new MeshLambertMaterial({ transparent: true, opacity: 0.7, depthWrite: false });
+  }
+
+  private buildMesh(geometry: BufferGeometry, material: Material): InstancedMesh {
+    const count = this.sim.weather.cellsX * this.sim.weather.cellsY;
+    const mesh = new InstancedMesh(geometry, material, count);
+    mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+    mesh.frustumCulled = false;
+    return mesh;
+  }
+
+  /** Remplace le quad plat par le vrai modèle de nuage (chargé async). */
+  async useModel(cloudUrl: string): Promise<void> {
+    const gltf = await new GLTFLoader().loadAsync(cloudUrl);
+    let src: Mesh | null = null;
+    gltf.scene.traverse((o) => {
+      if (!src && (o as Mesh).isMesh) src = o as Mesh;
+    });
+    if (!src) return;
+    const cloudMesh = src as Mesh;
+
+    // Échelle : le modèle (~1 unité) porté à ~1,6 cellule météo de large.
+    cloudMesh.geometry.computeBoundingBox();
+    const box = cloudMesh.geometry.boundingBox!;
+    const width = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) || 1;
+    const scale = (WEATHER_CELL * 1.6) / width;
+    cloudMesh.geometry.scale(scale, scale, scale);
+
+    const material = new MeshLambertMaterial({
+      color: 0xffffff,
+      // Émissive douce : les dessous des nuages (dans l'ombre, vus de dessus)
+      // restent clairs et cotonneux au lieu de virer au gris sombre.
+      emissive: new Color(0x8a919e),
+      transparent: true,
+      opacity: 0.92,
+      depthWrite: false,
+    });
+
+    this.removeFromScene(this.mesh);
+    this.mesh.dispose();
+    this.mesh = this.buildMesh(cloudMesh.geometry, material);
+    this.addToScene(this.mesh);
+  }
+
+  /** Met à jour position, échelle et teinte des nuages depuis l'état météo. */
   update(): void {
     const weather = this.sim.weather;
-    const y = CLOUD_ALTITUDE;
     let index = 0;
     for (let cy = 0; cy < weather.cellsY; cy++) {
       for (let cx = 0; cx < weather.cellsX; cx++) {
         const cover = weather.cloudAt(cx, cy);
         if (cover < VISIBLE_THRESHOLD) {
-          // Escamote l'instance (échelle nulle).
-          this.matrix.compose(this.position.set(0, -1000, 0), this.quaternion, this.hidden);
-          this.mesh.setMatrixAt(index, this.matrix);
+          // Escamote l'instance (échelle nulle, hors champ).
+          this.dummy.position.set(0, -1000, 0);
+          this.dummy.scale.setScalar(0);
         } else {
           const wx = cx * WEATHER_CELL + WEATHER_CELL / 2;
           const wz = cy * WEATHER_CELL + WEATHER_CELL / 2;
-          const s = 0.6 + cover * 0.7;
-          this.matrix.compose(
-            this.position.set(wx, y, wz),
-            this.quaternion,
-            this.scale.copy(this.flat).multiplyScalar(s),
-          );
-          this.mesh.setMatrixAt(index, this.matrix);
-          this.mesh.setColorAt(index, FAIR_COLOR.clone().lerp(STORM_COLOR, cover));
+          this.dummy.position.set(wx, CLOUD_ALTITUDE, wz);
+          this.dummy.rotation.set(0, ((cx * 73 + cy * 191) % 360) * (Math.PI / 180), 0);
+          this.dummy.scale.setScalar(0.35 + cover * 0.4);
+          // Remappe [seuil,1] → [0,1] : blanc cotonneux au seuil, gris au plus dense.
+          const storminess = (cover - VISIBLE_THRESHOLD) / (1 - VISIBLE_THRESHOLD);
+          this.mesh.setColorAt(index, this.tint.copy(FAIR_COLOR).lerp(STORM_COLOR, storminess));
         }
+        this.dummy.updateMatrix();
+        this.mesh.setMatrixAt(index, this.dummy.matrix);
         index++;
       }
     }

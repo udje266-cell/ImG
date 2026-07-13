@@ -24,6 +24,9 @@ export const MODEL_CATALOG: readonly ModelDef[] = [
   { id: "villager-mage", url: "models/characters/Mage.glb", category: "character", targetHeight: 1.4, clipHint: "idle" },
   { id: "villager-rogue", url: "models/characters/Rogue.glb", category: "character", targetHeight: 1.4, clipHint: "idle" },
   { id: "villager-rogue-hooded", url: "models/characters/Rogue_Hooded.glb", category: "character", targetHeight: 1.4, clipHint: "idle" },
+  // Habitants de l'âge de pierre (modèles fournis, décimés) — base des futurs habitants.
+  { id: "prehistoric-man", url: "models/characters/prehistoric-man.glb", category: "character", targetHeight: 1.5 },
+  { id: "prehistoric-woman", url: "models/characters/prehistoric-woman.glb", category: "character", targetHeight: 1.45 },
   // Faune (CC0 / CC-BY / Apache-2.0 — voir LICENSES.md).
   { id: "fox", url: "models/animals/Fox.glb", category: "animal", targetHeight: 0.7, clipHint: "survey" },
   { id: "horse", url: "models/animals/Horse.glb", category: "animal", targetHeight: 1.6 },
@@ -33,4 +36,5 @@ export const MODEL_CATALOG: readonly ModelDef[] = [
   // Props décoratifs (modèles Tripo fournis, décimés via tools/decimate-model.mjs).
   { id: "tree", url: "models/props/tree.glb", category: "prop", targetHeight: 4 },
   { id: "terrain-diorama", url: "models/props/terrain-diorama.glb", category: "prop", targetHeight: 3 },
+  { id: "cloud", url: "models/props/cloud.glb", category: "prop", targetHeight: 3, flyHeight: 3 },
 ];

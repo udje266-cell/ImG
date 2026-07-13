@@ -61,8 +61,11 @@ export class SceneRenderer {
     this.terrainMesh = new TerrainMesh(sim.terrain, sim.bus);
     this.scene.add(this.terrainMesh.mesh);
 
-    this.weatherLayer = new WeatherLayer(sim);
-    this.scene.add(this.weatherLayer.mesh);
+    this.weatherLayer = new WeatherLayer(
+      sim,
+      (mesh) => this.scene.add(mesh),
+      (mesh) => this.scene.remove(mesh),
+    );
 
     const water = new Mesh(
       new PlaneGeometry(width, height),
@@ -141,6 +144,11 @@ export class SceneRenderer {
   /** Charge la couche de forêts instanciées (arbres selon la flore). */
   async enableForest(sim: Simulation, treeUrl: string): Promise<void> {
     this.forest = await ForestLayer.create(sim, treeUrl, (mesh) => this.scene.add(mesh));
+  }
+
+  /** Remplace les quads plats de la météo par le modèle de nuage 3D. */
+  async enableCloudModel(cloudUrl: string): Promise<void> {
+    await this.weatherLayer.useModel(cloudUrl);
   }
 
   /** Nombre d'arbres instanciés (-1 si la forêt n'est pas chargée) — debug. */

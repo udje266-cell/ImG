@@ -126,7 +126,7 @@ ImG/
 - `WeatherSystem` : grille grossière (1 cellule = 8 tuiles), cadencée `WEATHER_INTERVAL` (5 ticks). Boucle de l'eau déterministe (stream `"weather"`) : évaporation océanique → nuages advectés par un vent qui tourne lentement (décalage torique de la grille) → précipitation au-dessus des terres saturées → `terrain.setMoisture` (biomes dynamiques) → `drySoil` ramène l'humidité vers `baselineMoisture`. Neige si `baseTemperature + offset saisonnier < seuil`.
 - Saisons : `seasons.ts` (offset thermique pur) appliqué par `terrain.setSeasonalTemperatureOffset` à chaque `time:seasonChanged` — re-classifie tout le monde une fois par saison.
 - `TerrainGrid` gagne `moisture` (vivante) + `baselineMoisture` (équilibre) ; `setMoisture` marque les chunks sales comme `setHeight`.
-- Rendu : `WeatherLayer` — `InstancedMesh` d'un quad par cellule météo, teinté blanc→gris orage, un seul draw call.
+- Rendu : `WeatherLayer` — `InstancedMesh` du **modèle de nuage volumétrique** (fourni, décimé), une instance par cellule météo au-dessus du seuil, teinte remappée blanc cotonneux → gris orage selon la densité, émissive douce pour garder les dessous clairs, un seul draw call. Repli sur quad plat tant que le modèle n'est pas chargé.
 
 ### 4.6 ter Écologie — flore (`sim/ecology/FloraSystem.ts` — phase 3)
 - Densité de végétation ∈ [0,1] par tuile. Capacité = capacité du biome × adéquation de l'humidité ; croissance logistique vers la capacité, régression au-dessus (sécheresse/gel), essaimage vers les 4 voisins, germination spontanée rare. Rien ne pousse en hiver (facteur saisonnier = 0). Déterministe (stream "flora"), cadencée `FLORA_INTERVAL` (10 ticks), émet `flora:updated`.

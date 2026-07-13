@@ -58,9 +58,10 @@ function boot(): void {
     if (power === "rain") hud.flash("Pouvoir débloqué : Pluie 🌧️");
   });
 
-  // Forêts : arbres instanciés selon la densité de flore (hors showcase).
+  // Forêts + nuages 3D (hors showcase, qui a sa propre mise en scène).
   if (!params.has("showcase")) {
     void renderer.enableForest(sim, "models/props/tree.glb");
+    void renderer.enableCloudModel("models/props/cloud.glb");
   }
 
   // Mode validation des modèles 3D : ?showcase=1 pose personnages et animaux
