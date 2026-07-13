@@ -21,6 +21,7 @@ npm run build      # typecheck strict + build de production
 | [docs/GDD.md](docs/GDD.md) | Game Design Document : vision, piliers, systèmes de jeu |
 | [docs/TDD.md](docs/TDD.md) | Technical Design Document : architecture, couches, performance |
 | [docs/UML.md](docs/UML.md) | Diagrammes (composants, classes, séquences, états) |
+| [docs/DIVINE_POWERS.md](docs/DIVINE_POWERS.md) | Système complet de pouvoirs divins : 76 miracles, progression, économie de Foi |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Feuille de route par phases + priorités du MVP |
 | [docs/adr/](docs/adr/) | Décisions d'architecture (ADR) |
 
