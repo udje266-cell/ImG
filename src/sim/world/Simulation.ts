@@ -12,6 +12,7 @@ import { RainPower } from "../powers/RainPower";
 import { TerraformPower } from "../powers/TerraformPower";
 import type { TerrainGrid } from "../terrain/TerrainGrid";
 import { AgentSystem } from "../agents/AgentSystem";
+import { SettlementSystem } from "../society/SettlementSystem";
 import { FaunaSystem } from "../ecology/FaunaSystem";
 import { FLORA_INTERVAL, FloraSystem } from "../ecology/FloraSystem";
 import { seasonalOffset } from "../weather/seasons";
@@ -46,6 +47,7 @@ export class Simulation {
   readonly flora: FloraSystem;
   readonly fauna: FaunaSystem;
   readonly agents: AgentSystem;
+  readonly settlements: SettlementSystem;
   /** Config effective du monde — nécessaire à la sauvegarde (seed + deltas). */
   readonly worldConfig: { seed: number; width: number; height: number; seaLevel: number };
   private readonly scheduler: Scheduler<Simulation>;
@@ -69,6 +71,7 @@ export class Simulation {
     this.flora = new FloraSystem(this.terrain, this.rng);
     this.fauna = new FaunaSystem(this.terrain, this.flora, this.rng);
     this.agents = new AgentSystem(this.terrain, this.flora, this.rng, this.bus);
+    this.settlements = new SettlementSystem(this.terrain, this.rng);
     this.applySeasonalOffset();
     this.flora.setSeason(this.clock.season);
 
@@ -104,6 +107,11 @@ export class Simulation {
         sim.faith.add(sim.agents.faithIncome());
       },
     });
+  }
+
+  /** Fonde les villages à partir des habitants présents (peuplement initial). */
+  foundSettlements(): void {
+    this.settlements.found(this.agents);
   }
 
   /** Durée du dernier passage de chaque système (ms) — overlay de perf. */

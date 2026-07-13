@@ -21,6 +21,7 @@ import { CameraRig } from "./CameraRig";
 import { FaunaLayer } from "./FaunaLayer";
 import { ForestLayer } from "./ForestLayer";
 import { InhabitantsLayer } from "./InhabitantsLayer";
+import { SettlementLayer } from "./SettlementLayer";
 import { Showcase } from "./Showcase";
 import { TerrainMesh } from "./TerrainMesh";
 import { WeatherLayer } from "./WeatherLayer";
@@ -58,6 +59,7 @@ export class SceneRenderer {
   private forest: ForestLayer | null = null;
   private inhabitants: InhabitantsLayer | null = null;
   private faunaLayer: FaunaLayer | null = null;
+  private settlements: SettlementLayer | null = null;
   private lastFrameAt: number | null = null;
 
   constructor(
@@ -198,6 +200,16 @@ export class SceneRenderer {
   /** Charge le rendu instancié de la faune ([herbivore, prédateur]). */
   async enableFauna(sim: Simulation, urls: [string, string]): Promise<void> {
     this.faunaLayer = await FaunaLayer.create(sim, urls, (mesh) => this.scene.add(mesh));
+  }
+
+  /** Pose les huttes et totems des villages (villages déjà fondés). */
+  enableSettlements(): void {
+    this.settlements = new SettlementLayer(this.sim, (mesh) => this.scene.add(mesh));
+  }
+
+  /** Nombre de huttes posées (-1 si les villages ne sont pas rendus) — debug. */
+  get hutCount(): number {
+    return this.settlements?.hutCount ?? -1;
   }
 
   /** Nombre d'habitants simulés (-1 si non initialisés) — debug. */

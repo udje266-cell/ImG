@@ -63,6 +63,16 @@ export class AgentSystem {
     return this.px.length;
   }
 
+  /**
+   * Réassigne le foyer d'un habitant (utilisé par `SettlementSystem` quand des
+   * villages se fondent : l'objectif "rest" y ramène alors les habitants, qui
+   * se regroupent peu à peu autour de leur village).
+   */
+  setHome(i: number, x: number, y: number): void {
+    this.homeX[i] = x;
+    this.homeY[i] = y;
+  }
+
   /** Foi produite ce tick par l'ensemble des croyants. */
   faithIncome(): number {
     let sum = 0;

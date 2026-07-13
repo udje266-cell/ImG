@@ -62,11 +62,16 @@ function boot(): void {
   if (!params.has("showcase")) {
     void renderer.enableForest(sim, "models/props/tree.glb");
     void renderer.enableCloudModel("models/props/cloud.glb");
-    if (sim.agents.count === 0) sim.agents.populate(60); // peuplement de départ
+    const freshWorld = sim.agents.count === 0;
+    if (freshWorld) sim.agents.populate(60); // peuplement de départ
+    // Villages : fondés au peuplement initial ; sur une reprise, ils viennent
+    // déjà de la sauvegarde (ne pas re-fonder pour ne pas déplacer les foyers).
+    if (freshWorld && sim.settlements.villages.length === 0) sim.foundSettlements();
     void renderer.enableInhabitants(sim, [
       "models/characters/prehistoric-man.glb",
       "models/characters/prehistoric-woman.glb",
     ]);
+    renderer.enableSettlements();
     if (sim.fauna.count === 0) sim.fauna.populate(80, 12); // herbivores, prédateurs
     void renderer.enableFauna(sim, ["models/animals/Horse.glb", "models/animals/Fox.glb"]);
   }

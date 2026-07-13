@@ -62,10 +62,11 @@ Le MVP (phases 0–1) doit prouver les fondations, pas empiler des features :
 - **`AgentSystem`** : habitants préhistoriques avec besoins (faim, fatigue, ferveur), personnalité (piété), IA utilitaire (forage/repos/errance/prière) ré-évaluée en LOD, déplacement vers cibles, foyers. Stores SoA, déterministe (stream "agents").
 - **La Foi est enfin générée par les croyants** (`faithIncome = Σ ferveur × const`) — la boucle du GDD §2 est bouclée.
 - Rendu : `InhabitantsLayer` — habitants instanciés (homme/femme préhistoriques), positionnés depuis le snapshot ; HUD population 👥. Sauvegarde v4.
-- À venir : perception/mémoire, foyers→villages→professions, pathfinding hiérarchique, objectif **10 000 agents à 60 fps** (impostors + index spatial).
+- À venir : perception/mémoire, professions, pathfinding hiérarchique, objectif **10 000 agents à 60 fps** (impostors + index spatial). *(foyers→villages : livré en Phase 5.)*
 
 ### Phase 5 — Société & économie
-- Villages, professions, stocks, production/consommation, prix émergents, commerce inter-villages.
+- **Villages (première itération ✅)** — `SettlementSystem` : regroupe les habitants dispersés en grappes déterministes (échantillonnage du point le plus éloigné), fonde un village au barycentre de chacune (calé sur tuile constructible), y plante des huttes, puis **réassigne le foyer** de chaque habitant sur son village → la population se resserre autour des villages (« rest » y ramène chacun). Rendu : `SettlementLayer` (huttes torchis+chaume et totems low-poly instanciés, géométrie procédurale, 2 draw calls). Sauvegarde v6.
+- À venir : professions, stocks, production/consommation, prix émergents, commerce inter-villages ; croissance des villages avec la population (naissances).
 
 ### Phase 6 — Religions dynamiques
 - **Moteur d'interprétation** : les peuples ne voient jamais la divinité, ils interprètent les événements (pluie = bénédiction, volcan = colère, éclipse = présage — cahier des charges §6) selon leur culture ; mémoire des interventions transmise en récits.
