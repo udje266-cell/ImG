@@ -37,4 +37,9 @@ export const MODEL_CATALOG: readonly ModelDef[] = [
   { id: "tree", url: "models/props/tree.glb", category: "prop", targetHeight: 4 },
   { id: "terrain-diorama", url: "models/props/terrain-diorama.glb", category: "prop", targetHeight: 3 },
   { id: "cloud", url: "models/props/cloud.glb", category: "prop", targetHeight: 3, flyHeight: 3 },
+  // Modèles fournis, décimés : volcan (lieu-dit / pouvoir Titan), cristaux
+  // (gisement / fontaine magique), surface d'eau stylisée.
+  { id: "volcano", url: "models/props/volcano.glb", category: "prop", targetHeight: 6 },
+  { id: "crystal", url: "models/props/crystal.glb", category: "prop", targetHeight: 2 },
+  { id: "water-surface", url: "models/props/water-surface.glb", category: "prop", targetHeight: 0.6 },
 ];

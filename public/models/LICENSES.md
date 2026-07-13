@@ -25,11 +25,11 @@ Tous les modèles sont libres d'utilisation commerciale. Détail par fichier :
 - **Usage** : habitants de l'âge de pierre (base des futurs habitants). Statiques (pas de rig d'animation).
 
 ## `props/` — modèles fournis par le propriétaire du projet
-`tree.glb`, `terrain-diorama.glb`, `cloud.glb`
+`tree.glb`, `terrain-diorama.glb`, `cloud.glb`, `volcano.glb`, `crystal.glb`, `water-surface.glb`
 
 - **Origine** : modèles générés via Tripo, fournis par le propriétaire du projet (détenteur des droits).
 - **Traitement** : décimés depuis les sources (~2 M triangles, ~55 Mo) vers des assets game-ready via `tools/decimate-model.mjs` — l'arbre à ~7,9 k tris (2,2 Mo), le diorama à ~22,6 k tris (2,5 Mo). Les sources lourdes ne sont **pas** versionnées.
-- **Usage** : l'arbre est un prop de végétation ; le nuage (`cloud.glb`, ~7,7 k tris) est instancié par la couche météo ; le diorama de terrain est **décoratif uniquement** (référence de style / fond / lieu-dit) — il ne remplace pas le terrain procédural, qui doit rester déformable en temps réel.
+- **Usage** : l'arbre est un prop de végétation ; le nuage (`cloud.glb`, ~7,7 k tris) est instancié par la couche météo ; le volcan (`volcano.glb`, ~15 k) est un lieu-dit / support du pouvoir « Réveil du Titan » ; les cristaux (`crystal.glb`, ~7,8 k) un gisement / fontaine magique ; la surface d'eau (`water-surface.glb`, ~12 k) une eau stylisée décorative ; le diorama de terrain est **décoratif uniquement** (référence de style) — aucun ne remplace le terrain procédural, qui doit rester déformable en temps réel.
 
 > Règle du projet : tout nouveau modèle ajouté ici DOIT être accompagné de sa
 > ligne de licence dans ce fichier. Les licences acceptées sans validation
