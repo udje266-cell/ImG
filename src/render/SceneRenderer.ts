@@ -66,15 +66,16 @@ export class SceneRenderer {
     // Rendu « cinématographique » : tone-mapping ACES + sortie sRGB + ombres douces.
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.toneMapping = ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
 
     const { width, height } = sim.terrain;
     this.rig = new CameraRig(1, width / 2, height / 2);
 
-    // Brume atmosphérique pour la profondeur (les lointains se fondent au ciel).
-    this.fog = new Fog(DAY_SKY.getHex(), width * 0.9, width * 2.4);
+    // Brume atmosphérique légère, cantonnée aux lointains (garde les couleurs
+    // proches saturées ; seul l'horizon se fond dans le ciel).
+    this.fog = new Fog(DAY_SKY.getHex(), width * 1.6, width * 3.0);
     this.scene.fog = this.fog;
 
     this.terrainMesh = new TerrainMesh(sim.terrain, sim.bus);

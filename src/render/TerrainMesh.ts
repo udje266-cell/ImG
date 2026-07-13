@@ -2,7 +2,7 @@ import { BufferAttribute, BufferGeometry, Mesh, MeshLambertMaterial } from "thre
 import type { EventBus } from "../core/events/EventBus";
 import type { GameEvents } from "../sim/events";
 import { CHUNK_SIZE, type TerrainGrid } from "../sim/terrain/TerrainGrid";
-import { blendedLandColor, DEEP_WATER_FLOOR, lerpColor, SAND_COLOR } from "./biomePalette";
+import { blendedLandColor, DEEP_WATER_FLOOR, lerpColor, type Rgb, SAND_COLOR } from "./biomePalette";
 import { sampleHeightBilinear } from "./heightSampler";
 import { landLayer, LAYER_STEP } from "./terraces";
 
@@ -26,7 +26,7 @@ const DEPTH_RAMP = 0.15;
  * au lieu de marches verticales anguleuses. `e` est l'altitude en unités de
  * strate (≥ 0).
  */
-const PLATEAU_FRAC = 0.72;
+const PLATEAU_FRAC = 0.82;
 function terraceProfile(e: number): number {
   const layer = Math.floor(e);
   const frac = e - layer;
@@ -41,10 +41,23 @@ export function groundHeightAt(terrain: TerrainGrid, wx: number, wy: number): nu
   const e = (h - terrain.seaLevel) / LAYER_STEP;
   return (terraceProfile(e) + 0.5) * TERRACE_HEIGHT;
 }
-/** Brightness multiplier of the darker stripe on odd terraces (bandes franches). */
-const STRIPE_SHADE = 0.9;
+/** Assombrissement de la ligne de contour au sommet de chaque rebord. */
+const SEAM_SHADE = 0.7;
 /** Brightening per terrace so high ground reads as high (contraste vertical). */
-const ALTITUDE_LIGHT_PER_LAYER = 0.02;
+const ALTITUDE_LIGHT_PER_LAYER = 0.014;
+
+// Dégradé chaud par altitude (au-dessus du niveau de la mer, en hauteur normalisée) :
+// vert vif en bas → orange → terracotta rouge en hauteur, façon Godus.
+const WARM_START = 0.035; // le réchauffement démarre tôt (~1 terrasse)
+const WARM_MID = 0.1; // portée du 1er mélange (→ orange)
+const WARM_HIGH_SPAN = 0.13; // portée du 2e mélange (→ terracotta)
+const WARM_TAN: Rgb = [226, 158, 74]; // orange chaud
+const WARM_TERRACOTTA: Rgb = [198, 96, 52]; // terracotta rouge
+
+function smoothstep(x: number): number {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+}
 
 /**
  * The world as one low-poly heightmap mesh (docs/TDD.md §4.5, ADR 0002).
@@ -153,10 +166,22 @@ export class TerrainMesh {
       const t = Math.min(1, (terrain.seaLevel - h) / DEPTH_RAMP);
       [r, g, b] = lerpColor(SAND_COLOR, DEEP_WATER_FLOOR, t);
     } else {
+      const above = h - terrain.seaLevel;
       const layer = landLayer(h, terrain.seaLevel);
-      let light = 1 + layer * ALTITUDE_LIGHT_PER_LAYER;
-      if (layer % 2 === 1) light *= STRIPE_SHADE;
-      const base = blendedLandColor(terrain, vx, vy);
+
+      // Dégradé chaud par altitude (style Godus) : vert vif en bas → jaune →
+      // tan → terracotta en hauteur. Deux paliers de mélange.
+      let base = blendedLandColor(terrain, vx, vy);
+      const warmA = smoothstep((above - WARM_START) / WARM_MID);
+      if (warmA > 0) base = lerpColor(base, WARM_TAN, warmA);
+      const warmB = smoothstep((above - WARM_MID - WARM_START) / WARM_HIGH_SPAN);
+      if (warmB > 0) base = lerpColor(base, WARM_TERRACOTTA, warmB);
+
+      // Ligne de contour : bande sombre au sommet de chaque rebord de terrasse
+      // pour détacher nettement les paliers (comme des courbes de niveau).
+      const frac = (above / LAYER_STEP) - layer;
+      const contour = frac > 0.84 ? SEAM_SHADE : 1;
+      const light = (1 + layer * ALTITUDE_LIGHT_PER_LAYER) * contour;
       r = base[0] * light;
       g = base[1] * light;
       b = base[2] * light;

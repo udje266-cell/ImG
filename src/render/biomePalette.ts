@@ -7,21 +7,22 @@ import type { TerrainGrid } from "../sim/terrain/TerrainGrid";
  */
 export type Rgb = readonly [number, number, number];
 
-// Palette vive et saturée, façon Godus (docs/GDD.md §6) : verts lumineux,
-// sables chauds, contrastes francs entre terrasses.
+// Palette vive et saturée, façon Godus (docs/GDD.md §6) : verts lime lumineux,
+// sables chauds. Les hautes terres virent au tan/terracotta via le dégradé
+// d'altitude du TerrainMesh (pas de gris de « roche »).
 export const BIOME_COLORS: Record<Biome, Rgb> = {
   [Biome.Ocean]: [46, 150, 205], // seabed uses the depth ramp below instead
-  [Biome.Beach]: [240, 224, 158],
-  [Biome.Grassland]: [138, 202, 66],
-  [Biome.TemperateForest]: [86, 174, 58],
-  [Biome.TropicalForest]: [58, 162, 74],
-  [Biome.Savanna]: [214, 196, 92],
+  [Biome.Beach]: [242, 228, 160],
+  [Biome.Grassland]: [130, 206, 54],
+  [Biome.TemperateForest]: [96, 190, 52],
+  [Biome.TropicalForest]: [64, 176, 68],
+  [Biome.Savanna]: [206, 200, 84],
   [Biome.Desert]: [238, 214, 138],
-  [Biome.Steppe]: [190, 184, 104],
-  [Biome.Taiga]: [104, 168, 104],
-  [Biome.Tundra]: [196, 204, 176],
-  [Biome.Mountain]: [166, 156, 142],
-  [Biome.Snow]: [246, 249, 252],
+  [Biome.Steppe]: [186, 194, 96],
+  [Biome.Taiga]: [110, 180, 96],
+  [Biome.Tundra]: [200, 208, 170],
+  [Biome.Mountain]: [200, 156, 100], // tan chaud (le dégradé le pousse vers terracotta)
+  [Biome.Snow]: [248, 250, 253],
 };
 
 export const SAND_COLOR: Rgb = BIOME_COLORS[Biome.Beach];
