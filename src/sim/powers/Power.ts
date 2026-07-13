@@ -24,8 +24,17 @@ export interface FlattenInvocation {
   radius: number;
 }
 
+/** Sature les nuages au-dessus de la zone : la pluie suit naturellement. */
+export interface RainInvocation {
+  power: "rain";
+  x: number;
+  y: number;
+  /** Rayon d'ensemencement, en tuiles. */
+  radius: number;
+}
+
 /** Union of all power invocations — grows as new powers are added. */
-export type PowerInvocation = TerraformInvocation | FlattenInvocation;
+export type PowerInvocation = TerraformInvocation | FlattenInvocation | RainInvocation;
 
 export type PowerId = PowerInvocation["power"];
 

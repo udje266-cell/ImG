@@ -1,8 +1,9 @@
 import { SceneRenderer } from "../render/SceneRenderer";
-import { loadSimulation, serializeSimulation, type SaveDataV1 } from "../sim/save/save";
+import { loadSimulation, serializeSimulation, type AnySaveData } from "../sim/save/save";
 import { Simulation } from "../sim/world/Simulation";
 import { Hud } from "../ui/Hud";
 import { InputController, type GamePersistence } from "../ui/InputController";
+import { PerfOverlay } from "../ui/PerfOverlay";
 import { GameLoop } from "./GameLoop";
 
 const SAVE_KEY = "img:save";
@@ -23,9 +24,11 @@ function boot(): void {
 
   const renderer = new SceneRenderer(canvas, sim);
   const hud = new Hud(hudElement);
+  const perf = new PerfOverlay(document.getElementById("perf")!, sim);
   const loop = new GameLoop(sim, () => {
     renderer.render(sim);
     hud.update(sim, { paused: loop.paused, speed: loop.speed });
+    perf.update();
   });
 
   const persistence: GamePersistence = {
@@ -48,6 +51,7 @@ function boot(): void {
 
   sim.bus.on("progression:powerUnlocked", ({ power }) => {
     if (power === "flatten") hud.flash("Pouvoir débloqué : Aplanir ▦");
+    if (power === "rain") hud.flash("Pouvoir débloqué : Pluie 🌧️");
   });
 
   // Mode validation des modèles 3D : ?showcase=1 pose personnages et animaux
@@ -68,17 +72,18 @@ function boot(): void {
 
 /** `?load=1` + sauvegarde locale valide → reprise ; sinon monde neuf. */
 function restoreOrCreate(params: URLSearchParams, seed: number): Simulation {
+  const now = (): number => performance.now();
   if (params.has("load")) {
     const stored = window.localStorage.getItem(SAVE_KEY);
     if (stored) {
       try {
-        return loadSimulation(JSON.parse(stored) as SaveDataV1);
+        return loadSimulation(JSON.parse(stored) as AnySaveData, { now });
       } catch (error) {
         console.error("Sauvegarde illisible — nouveau monde généré.", error);
       }
     }
   }
-  return new Simulation({ seed });
+  return new Simulation({ seed, now });
 }
 
 boot();

@@ -17,7 +17,13 @@ export interface GamePersistence {
   hasSave(): boolean;
 }
 
-export type SculptTool = "raise" | "lower" | "flatten";
+export type SculptTool = "raise" | "lower" | "flatten" | "rain";
+
+/** Pouvoirs déblocables associés à un bouton d'outil verrouillable. */
+const UNLOCKABLE_TOOLS: ReadonlyArray<{ tool: SculptTool; button: string; icon: string; power: "flatten" | "rain" }> = [
+  { tool: "flatten", button: "tool-flatten", icon: "▦", power: "flatten" },
+  { tool: "rain", button: "tool-rain", icon: "🌧️", power: "rain" },
+];
 
 /** Minimum delay between two sculpt intents while the pointer is held (ms). */
 const SCULPT_THROTTLE_MS = 90;
@@ -66,10 +72,12 @@ export class InputController {
 
     this.bindToolButton("tool-raise", "raise");
     this.bindToolButton("tool-lower", "lower");
-    this.bindToolButton("tool-flatten", "flatten");
-    this.setFlattenEnabled(this.sim.progression.isUnlocked("flatten"));
+    for (const { tool, button, power } of UNLOCKABLE_TOOLS) {
+      this.bindToolButton(button, tool);
+      this.setToolEnabled(power, this.sim.progression.isUnlocked(power));
+    }
     this.sim.bus.on("progression:powerUnlocked", ({ power }) => {
-      if (power === "flatten") this.setFlattenEnabled(true);
+      if (power === "flatten" || power === "rain") this.setToolEnabled(power, true);
     });
 
     document.getElementById("btn-save")?.addEventListener("click", () => this.persistence.save());
@@ -80,12 +88,14 @@ export class InputController {
     }
   }
 
-  private setFlattenEnabled(enabled: boolean): void {
-    const button = document.getElementById("tool-flatten") as HTMLButtonElement | null;
+  private setToolEnabled(power: "flatten" | "rain", enabled: boolean): void {
+    const spec = UNLOCKABLE_TOOLS.find((t) => t.power === power);
+    if (!spec) return;
+    const button = document.getElementById(spec.button) as HTMLButtonElement | null;
     if (!button) return;
     button.disabled = !enabled;
-    button.textContent = enabled ? "▦" : "🔒";
-    if (!enabled && this.tool === "flatten") this.setTool("raise");
+    button.textContent = enabled ? spec.icon : "🔒";
+    if (!enabled && this.tool === spec.tool) this.setTool("raise");
   }
 
   private bindToolButton(id: string, tool: SculptTool): void {
@@ -96,12 +106,14 @@ export class InputController {
   }
 
   private setTool(tool: SculptTool): void {
-    if (tool === "flatten" && !this.sim.progression.isUnlocked("flatten")) return;
+    const lock = UNLOCKABLE_TOOLS.find((t) => t.tool === tool);
+    if (lock && !this.sim.progression.isUnlocked(lock.power)) return;
     this.tool = tool;
     for (const [id, t] of [
       ["tool-raise", "raise"],
       ["tool-lower", "lower"],
       ["tool-flatten", "flatten"],
+      ["tool-rain", "rain"],
     ] as const) {
       document.getElementById(id)?.classList.toggle("active", t === tool);
     }
@@ -223,6 +235,8 @@ export class InputController {
     let invocation: PowerInvocation;
     if (this.tool === "flatten") {
       invocation = { power: "flatten", x: tile.x, y: tile.y, radius: this.brushRadius };
+    } else if (this.tool === "rain") {
+      invocation = { power: "rain", x: tile.x, y: tile.y, radius: this.brushRadius };
     } else {
       const lowering = this.shiftHeld ? this.tool === "raise" : this.tool === "lower";
       invocation = {

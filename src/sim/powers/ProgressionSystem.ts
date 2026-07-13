@@ -13,6 +13,7 @@ import type { PowerId } from "./Power";
 export const POWER_UNLOCK_THRESHOLDS: Record<PowerId, number> = {
   terraform: 0,
   flatten: 120,
+  rain: 300,
 };
 
 export class ProgressionSystem {

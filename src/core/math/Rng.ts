@@ -35,6 +35,16 @@ export class Rng {
     return min + Math.floor(this.float() * (max - min + 1));
   }
 
+  /** Internal state snapshot — used by the save system only. */
+  getState(): number {
+    return this.state;
+  }
+
+  /** Restore a state captured by `getState` (save system only). */
+  setState(state: number): void {
+    this.state = state >>> 0;
+  }
+
   /**
    * Derive an independent, reproducible stream from this generator's ORIGINAL
    * seed and a stream name. Forking does not consume state, so the order in

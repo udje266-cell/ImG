@@ -47,6 +47,9 @@ export function generateWorld(config: WorldGenConfig): TerrainGrid {
     }
   }
 
+  // L'humidité générée est l'équilibre vers lequel la météo ramène le sol.
+  grid.baselineMoisture.set(grid.moisture);
+
   grid.refreshAllBiomes();
   return grid;
 }

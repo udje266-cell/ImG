@@ -33,6 +33,13 @@
         color: rgba(230, 233, 240, 0.55);
         font: 12px/1.5 system-ui, sans-serif; pointer-events: none; user-select: none;
       }
+      #perf {
+        position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+        display: none; padding: 8px 12px; border-radius: 8px;
+        background: rgba(11, 14, 20, 0.85); border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #9fe6b0; font: 12px/1.5 ui-monospace, monospace;
+        pointer-events: none; user-select: none; white-space: pre;
+      }
       @media (pointer: coarse) { #help { display: none; } }
     </style>
   </head>
@@ -43,10 +50,12 @@
       <button id="tool-raise" title="Élever le terrain" aria-label="Élever">⛰️</button>
       <button id="tool-lower" title="Abaisser le terrain" aria-label="Abaisser">🕳️</button>
       <button id="tool-flatten" title="Aplanir (se débloque avec la Dévotion)" aria-label="Aplanir" disabled>🔒</button>
+      <button id="tool-rain" title="Invoquer la pluie (se débloque avec la Dévotion)" aria-label="Pluie" disabled>🔒</button>
       <button id="btn-save" class="spaced" title="Sauvegarder (S)" aria-label="Sauvegarder">💾</button>
       <button id="btn-load" title="Charger (L)" aria-label="Charger" disabled>📂</button>
     </div>
-    <div id="help">1 doigt / clic gauche : sculpter (Maj : inverser) · 2 doigts / clic droit : caméra · Molette / pincer : zoom · Q/E : pivoter · Espace : pause · 1/2/3 : vitesse · S/L : sauver/charger</div>
+    <div id="perf"></div>
+    <div id="help">1 doigt / clic gauche : sculpter (Maj : inverser) · 2 doigts / clic droit : caméra · Molette / pincer : zoom · Q/E : pivoter · Espace : pause · 1/2/3 : vitesse · S/L : sauver/charger · P : perfs</div>
     <script type="module" src="/src/app/main.ts"></script>
   </body>
 </html>

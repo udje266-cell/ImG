@@ -21,9 +21,15 @@ export class TerrainGrid {
   readonly heightMap: Float32Array;
   /** Sea-level temperature; altitude lapse is applied at classification time. */
   readonly baseTemperature: Float32Array;
+  /** Humidité vivante — la météo la recharge (pluie) ou l'assèche. */
   readonly moisture: Float32Array;
+  /** Humidité d'équilibre issue de la génération : la météo y ramène `moisture`. */
+  readonly baselineMoisture: Float32Array;
   /** Derived cache — always recomputed from the layers above. */
   readonly biomes: Uint8Array;
+
+  /** Décalage thermique saisonnier appliqué à la classification (hiver < 0). */
+  private seasonalTemperatureOffset = 0;
 
   private readonly dirtyChunks = new Set<number>();
 
@@ -38,6 +44,7 @@ export class TerrainGrid {
     this.heightMap = new Float32Array(cells);
     this.baseTemperature = new Float32Array(cells);
     this.moisture = new Float32Array(cells);
+    this.baselineMoisture = new Float32Array(cells);
     this.biomes = new Uint8Array(cells);
   }
 
@@ -78,6 +85,31 @@ export class TerrainGrid {
     this.setHeight(x, y, this.heightAt(x, y) + delta);
   }
 
+  /** Set soil moisture (clamped to [0, 1]) and mark the chunk dirty. */
+  setMoisture(x: number, y: number, value: number): void {
+    const clamped = Math.min(1, Math.max(0, value));
+    const i = this.index(x, y);
+    if (this.moisture[i] === clamped) return;
+    this.moisture[i] = clamped;
+    this.dirtyChunks.add(this.chunkIdAt(x, y));
+  }
+
+  get seasonalOffset(): number {
+    return this.seasonalTemperatureOffset;
+  }
+
+  /**
+   * Décalage thermique de la saison courante : re-classifie TOUT le monde
+   * (une fois par changement de saison — la neige descend en hiver).
+   */
+  setSeasonalTemperatureOffset(offset: number): void {
+    if (this.seasonalTemperatureOffset === offset) return;
+    this.seasonalTemperatureOffset = offset;
+    for (let id = 0; id < this.chunksX * this.chunksY; id++) {
+      this.dirtyChunks.add(id);
+    }
+  }
+
   /**
    * Recompute biomes of all dirty chunks. Returns the (sorted) chunk ids that
    * were refreshed and clears the dirty set. Called once per simulation tick.
@@ -116,7 +148,7 @@ export class TerrainGrid {
     const i = this.index(x, y);
     this.biomes[i] = classifyBiome(
       this.heightMap[i]!,
-      this.baseTemperature[i]!,
+      this.baseTemperature[i]! + this.seasonalTemperatureOffset,
       this.moisture[i]!,
       this.seaLevel,
     );

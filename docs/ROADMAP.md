@@ -43,9 +43,13 @@ Le MVP (phases 0–1) doit prouver les fondations, pas empiler des features :
 - Projet Capacitor, build APK, cibles de perf sur appareil milieu de gamme (60 fps terrain, 30 fps mini).
 - Adaptation UI (safe areas, tailles tactiles), puis iOS après validation Android.
 
-### Phase 2 — Monde dynamique
-- Météo cellulaire (nuages, pluie, neige) branchée sur l'humidité du sol.
-- Effets saisonniers réels (gel, croissance), rivières simples (écoulement).
+### Phase 2 — Monde dynamique ✅ (livrée en partie)
+- **Météo cellulaire** (`WeatherSystem`) : évaporation → nuages advectés par le vent → pluie/neige rechargeant l'humidité du sol → assèchement vers la baseline. Déterministe (stream RNG "weather"), cadencée 1 tick/5, rendu par couche de nuages instanciée.
+- **Saisons réelles** : décalage thermique par saison re-classifiant les biomes (la neige/toundra descend en hiver).
+- **Pouvoir Pluie** (débloqué à 300 de Dévotion) : ensemence les nuages, la pluie suit naturellement.
+- **Overlay de performance** (touche P) : FPS + ms/tick par système (DI de l'horloge de mesure, sim reste pure).
+- **Sauvegarde v2** : deltas d'humidité + état météo (nuages/vent/RNG), migration v1→v2 testée.
+- Reporté : rivières/écoulement (phase 2.5, avec l'érosion).
 
 ### Phase 3 — Écologie
 - Flore : croissance/essaimage dépendant humidité/saison. Faune : herbivores/prédateurs, reproduction, migration.

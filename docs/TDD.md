@@ -122,6 +122,12 @@ ImG/
 - Migrations par version croissante, rejet explicite des payloads corrompus ; round-trip, double round-trip et **déterminisme post-chargement** testés.
 - Dette identifiée pour v2 : état des streams RNG (dès que la météo/écologie consommeront du hasard en cours de partie).
 
+### 4.6 bis Météo & saisons (`sim/weather` — phase 2)
+- `WeatherSystem` : grille grossière (1 cellule = 8 tuiles), cadencée `WEATHER_INTERVAL` (5 ticks). Boucle de l'eau déterministe (stream `"weather"`) : évaporation océanique → nuages advectés par un vent qui tourne lentement (décalage torique de la grille) → précipitation au-dessus des terres saturées → `terrain.setMoisture` (biomes dynamiques) → `drySoil` ramène l'humidité vers `baselineMoisture`. Neige si `baseTemperature + offset saisonnier < seuil`.
+- Saisons : `seasons.ts` (offset thermique pur) appliqué par `terrain.setSeasonalTemperatureOffset` à chaque `time:seasonChanged` — re-classifie tout le monde une fois par saison.
+- `TerrainGrid` gagne `moisture` (vivante) + `baselineMoisture` (équilibre) ; `setMoisture` marque les chunks sales comme `setHeight`.
+- Rendu : `WeatherLayer` — `InstancedMesh` d'un quad par cellule météo, teinté blanc→gris orage, un seul draw call.
+
 ### 4.7 Progression divine (`sim/powers/ProgressionSystem.ts` — v1)
 - La **Dévotion** (cumul à vie de la Foi dépensée en miracles) franchit des seuils déclarés dans `POWER_UNLOCK_THRESHOLDS` → événement `progression:powerUnlocked`.
 - `PowerSystem` rejette (`reason: "locked"`) tout intent d'un pouvoir non débloqué — atomique, aucun état partiel.

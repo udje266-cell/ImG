@@ -16,6 +16,7 @@ import type { Simulation } from "../sim/world/Simulation";
 import { CameraRig } from "./CameraRig";
 import { Showcase } from "./Showcase";
 import { TerrainMesh } from "./TerrainMesh";
+import { WeatherLayer } from "./WeatherLayer";
 
 const DAY_SKY = new Color("#a9d7ef");
 const NIGHT_SKY = new Color("#0b1026");
@@ -36,6 +37,7 @@ export class SceneRenderer {
   private readonly sun: DirectionalLight;
   private readonly ambient: AmbientLight;
   private readonly terrainMesh: TerrainMesh;
+  private readonly weatherLayer: WeatherLayer;
   private readonly brushRing: Mesh;
   private readonly raycaster = new Raycaster();
   private readonly pointerNdc = new Vector2();
@@ -56,6 +58,9 @@ export class SceneRenderer {
 
     this.terrainMesh = new TerrainMesh(sim.terrain, sim.bus);
     this.scene.add(this.terrainMesh.mesh);
+
+    this.weatherLayer = new WeatherLayer(sim);
+    this.scene.add(this.weatherLayer.mesh);
 
     const water = new Mesh(
       new PlaneGeometry(width, height),
@@ -152,6 +157,8 @@ export class SceneRenderer {
     this.ambient.intensity = NIGHT_AMBIENT + 0.45 * daylight;
     this.skyColor.copy(NIGHT_SKY).lerp(DAY_SKY, daylight);
     this.scene.background = this.skyColor;
+
+    this.weatherLayer.update();
 
     this.rig.update();
     this.renderer.render(this.scene, this.rig.camera);

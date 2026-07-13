@@ -80,6 +80,29 @@ describe("ProgressionSystem (cahier des charges §7)", () => {
     expect(variance()).toBeLessThan(before);
   });
 
+  it("rain unlocks at its threshold and then makes it rain", () => {
+    const sim = new Simulation(CONFIG);
+    expect(sim.progression.isUnlocked("rain")).toBe(false);
+
+    // Rain rejeté tant que verrouillé.
+    const rejections: string[] = [];
+    sim.bus.on("power:rejected", (e) => rejections.push(e.reason));
+    sim.bus.emit("intent:invokePower", { power: "rain", x: 32, y: 32, radius: 5 });
+    sim.step();
+    expect(rejections).toContain("locked");
+
+    sculptUntil(sim, POWER_UNLOCK_THRESHOLDS.rain);
+    expect(sim.progression.isUnlocked("rain")).toBe(true);
+
+    // Une fois débloqué, invoquer la pluie ensemence les nuages : la pluie
+    // qui suit fait monter l'humidité totale du sol (effet gameplay réel).
+    const totalMoisture = (): number => sim.terrain.moisture.reduce((a, b) => a + b, 0);
+    const before = totalMoisture();
+    sim.bus.emit("intent:invokePower", { power: "rain", x: 32, y: 32, radius: 8 });
+    for (let i = 0; i < 25; i++) sim.step();
+    expect(totalMoisture()).toBeGreaterThan(before);
+  });
+
   it("restoring devotion from a save does not re-emit unlock events", () => {
     const sim = new Simulation(CONFIG);
     const unlocks: string[] = [];

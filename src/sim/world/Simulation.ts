@@ -8,8 +8,11 @@ import { FaithSystem, type FaithConfig } from "../powers/FaithSystem";
 import { FlattenPower } from "../powers/FlattenPower";
 import { PowerSystem } from "../powers/PowerSystem";
 import { ProgressionSystem } from "../powers/ProgressionSystem";
+import { RainPower } from "../powers/RainPower";
 import { TerraformPower } from "../powers/TerraformPower";
 import type { TerrainGrid } from "../terrain/TerrainGrid";
+import { seasonalOffset } from "../weather/seasons";
+import { WEATHER_INTERVAL, WeatherSystem } from "../weather/WeatherSystem";
 import { generateWorld } from "../worldgen/WorldGenerator";
 
 /**
@@ -23,6 +26,8 @@ export interface SimulationConfig {
   height?: number;
   seaLevel?: number;
   faith?: FaithConfig;
+  /** Horloge de mesure injectée (DI) : active le chronométrage par système. */
+  now?: () => number;
 }
 
 export class Simulation {
@@ -34,9 +39,10 @@ export class Simulation {
   readonly faith: FaithSystem;
   readonly powers: PowerSystem;
   readonly progression: ProgressionSystem;
+  readonly weather: WeatherSystem;
   /** Config effective du monde — nécessaire à la sauvegarde (seed + deltas). */
   readonly worldConfig: { seed: number; width: number; height: number; seaLevel: number };
-  private readonly scheduler = new Scheduler<Simulation>();
+  private readonly scheduler: Scheduler<Simulation>;
 
   constructor(config: SimulationConfig) {
     this.rng = new Rng(config.seed);
@@ -52,12 +58,37 @@ export class Simulation {
     this.powers = new PowerSystem(this.bus);
     this.powers.register(new TerraformPower());
     this.powers.register(new FlattenPower());
+    this.powers.register(new RainPower());
+    this.weather = new WeatherSystem(this.terrain, this.rng);
+    this.applySeasonalOffset();
+
+    // Re-classifie les biomes à chaque changement de saison.
+    this.bus.on("time:seasonChanged", () => this.applySeasonalOffset());
 
     // Tick order matters and is explicit (docs/UML.md §3).
+    this.scheduler = new Scheduler<Simulation>(config.now);
     this.scheduler.add({ id: "powers", update: (sim) => sim.powers.step(sim) });
     this.scheduler.add({ id: "faith", update: (sim) => sim.faith.update() });
-    // Future systems (weather, ecology, agents...) register here, some with
-    // an `interval` so they only run every N ticks.
+    this.scheduler.add({
+      id: "weather",
+      interval: WEATHER_INTERVAL,
+      update: (sim) => sim.weather.update(),
+    });
+    // Future systems (ecology, agents...) register here.
+  }
+
+  /** Durée du dernier passage de chaque système (ms) — overlay de perf. */
+  get systemDurations(): ReadonlyMap<string, number> {
+    return this.scheduler.lastDurations;
+  }
+
+  private applySeasonalOffset(): void {
+    this.terrain.setSeasonalTemperatureOffset(seasonalOffset(this.clock.season));
+  }
+
+  /** Réaligne l'offset saisonnier sur le tick courant (après un chargement). */
+  reapplySeasonalOffset(): void {
+    this.applySeasonalOffset();
   }
 
   /** Advance the simulation by exactly one fixed tick. */

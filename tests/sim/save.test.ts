@@ -22,12 +22,12 @@ function sculptedSim(): Simulation {
 describe("save/load (docs/TDD.md §4.6)", () => {
   it("stores only the cells that diverge from the generated baseline", () => {
     const untouched = new Simulation(CONFIG);
-    expect(serializeSimulation(untouched).terrain.indices).toHaveLength(0);
+    expect(serializeSimulation(untouched).heightDeltas.indices).toHaveLength(0);
 
     const sculpted = sculptedSim();
     const data = serializeSimulation(sculpted);
-    expect(data.terrain.indices.length).toBeGreaterThan(0);
-    expect(data.terrain.indices.length).toBeLessThan(64 * 64 * 0.2); // deltas, pas la grille
+    expect(data.heightDeltas.indices.length).toBeGreaterThan(0);
+    expect(data.heightDeltas.indices.length).toBeLessThan(64 * 64 * 0.2); // deltas, pas la grille
   });
 
   it("round-trips exactly: load(save(sim)) has identical state", () => {
@@ -65,12 +65,46 @@ describe("save/load (docs/TDD.md §4.6)", () => {
 
   it("rejects unsupported versions and corrupted payloads", () => {
     const data = serializeSimulation(new Simulation(CONFIG));
-    expect(() => loadSimulation({ ...data, version: 99 as 1 })).toThrow(/version/);
+    expect(() => loadSimulation({ ...data, version: 99 as 2 })).toThrow(/version/);
     expect(() =>
-      loadSimulation({ ...data, terrain: { indices: [0, 1], heights: [0.5] } }),
+      loadSimulation({ ...data, heightDeltas: { indices: [0, 1], values: [0.5] } }),
     ).toThrow(/mismatch/);
     expect(() =>
-      loadSimulation({ ...data, terrain: { indices: [999999], heights: [0.5] } }),
+      loadSimulation({ ...data, heightDeltas: { indices: [999999], values: [0.5] } }),
     ).toThrow(/out of bounds/);
+  });
+
+  it("restores soil moisture and weather state (v2)", () => {
+    const sim = sculptedSim();
+    // Fait pleuvoir puis avancer pour diverger l'humidité de la baseline.
+    sim.weather.seedClouds(32, 30, 6);
+    for (let i = 0; i < 40; i++) sim.step();
+
+    const data = serializeSimulation(sim);
+    expect(data.moistureDeltas.indices.length).toBeGreaterThan(0);
+    expect(data.weather.cloud.length).toBe(sim.weather.cloud.length);
+
+    const restored = loadSimulation(data);
+    expect(restored.terrain.moisture).toEqual(sim.terrain.moisture);
+    expect(restored.weather.cloud).toEqual(sim.weather.cloud);
+    expect(restored.weather.windAngle).toBe(sim.weather.windAngle);
+  });
+
+  it("migrates a v1 save (no weather) without crashing", () => {
+    const v1 = {
+      version: 1 as const,
+      seed: CONFIG.seed,
+      width: CONFIG.width,
+      height: CONFIG.height,
+      seaLevel: 0.5,
+      tick: 100,
+      faith: 500,
+      devotion: 150,
+      terrain: { indices: [10, 20], heights: [0.9, 0.1] },
+    };
+    const restored = loadSimulation(v1);
+    expect(restored.clock.tick).toBe(100);
+    expect(restored.progression.devotion).toBe(150);
+    expect(restored.terrain.heightAt(10, 0)).toBeCloseTo(0.9, 6);
   });
 });
