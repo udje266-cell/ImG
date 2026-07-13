@@ -435,8 +435,8 @@ Les pouvoirs s'ouvrent par **paliers de Dévotion** (Foi cumulée à vie), souve
 
 L'architecture existante rend l'ajout d'un pouvoir **local** : implémenter l'interface `Power` (`sim/powers/Power.ts`), l'enregistrer, déclarer son seuil dans `ProgressionSystem`. Priorisation :
 
-1. **Déjà en jeu** : Soulèvement, Affaissement, Aplanir, Ondée (pluie).
-2. **Vague 1 (terrain + nature)** : Orogenèse, Lit du Serpent, Bassin, Sylve Nouvelle, Éclosion.
+1. **Déjà en jeu** : Soulèvement, Affaissement, Aplanir, Ondée (pluie), **Verdoiement** (Sylve Nouvelle — la végétation jaillit vers la capacité écologique de la zone, `sim/powers/GrowthPower.ts` + `FloraSystem.fertilize`, seuil de dévotion 180, école Nature).
+2. **Vague 1 (terrain + nature)** : Orogenèse, Lit du Serpent, Bassin, Éclosion.
 3. **Vague 2 (grâces + murmures)** : Corne d'Abondance, Fécondité, Cœur de Lion, Appel du Lointain, Songe — nécessite les **habitants** (phase C).
 4. **Vague 3 (courroux)** : Foudre, Colère Tellurique, Réveil du Titan — avec système de **traces permanentes** (roche volcanique, cratères, cicatrices).
 5. **Vague 4 (spirituel + bestiaire)** : après religions et faune.

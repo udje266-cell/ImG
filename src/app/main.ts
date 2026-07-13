@@ -55,6 +55,7 @@ function boot(): void {
 
   sim.bus.on("progression:powerUnlocked", ({ power }) => {
     if (power === "flatten") hud.flash("Pouvoir débloqué : Aplanir ▦");
+    if (power === "growth") hud.flash("Pouvoir débloqué : Verdoiement 🌱");
     if (power === "rain") hud.flash("Pouvoir débloqué : Pluie 🌧️");
   });
 

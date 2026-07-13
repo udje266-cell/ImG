@@ -33,8 +33,20 @@ export interface RainInvocation {
   radius: number;
 }
 
+/** Fait verdoyer la végétation vers sa capacité dans un rayon (école Nature). */
+export interface GrowthInvocation {
+  power: "growth";
+  x: number;
+  y: number;
+  radius: number;
+}
+
 /** Union of all power invocations — grows as new powers are added. */
-export type PowerInvocation = TerraformInvocation | FlattenInvocation | RainInvocation;
+export type PowerInvocation =
+  | TerraformInvocation
+  | FlattenInvocation
+  | RainInvocation
+  | GrowthInvocation;
 
 export type PowerId = PowerInvocation["power"];
 

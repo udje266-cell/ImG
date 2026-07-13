@@ -17,11 +17,14 @@ export interface GamePersistence {
   hasSave(): boolean;
 }
 
-export type SculptTool = "raise" | "lower" | "flatten" | "rain";
+export type SculptTool = "raise" | "lower" | "flatten" | "rain" | "growth";
+/** Pouvoirs verrouillables (hors terraforming, débloqué d'emblée). */
+type UnlockablePower = "flatten" | "rain" | "growth";
 
 /** Pouvoirs déblocables associés à un bouton d'outil verrouillable. */
-const UNLOCKABLE_TOOLS: ReadonlyArray<{ tool: SculptTool; button: string; icon: string; power: "flatten" | "rain" }> = [
+const UNLOCKABLE_TOOLS: ReadonlyArray<{ tool: SculptTool; button: string; icon: string; power: UnlockablePower }> = [
   { tool: "flatten", button: "tool-flatten", icon: "▦", power: "flatten" },
+  { tool: "growth", button: "tool-growth", icon: "🌱", power: "growth" },
   { tool: "rain", button: "tool-rain", icon: "🌧️", power: "rain" },
 ];
 
@@ -77,7 +80,9 @@ export class InputController {
       this.setToolEnabled(power, this.sim.progression.isUnlocked(power));
     }
     this.sim.bus.on("progression:powerUnlocked", ({ power }) => {
-      if (power === "flatten" || power === "rain") this.setToolEnabled(power, true);
+      if (power === "flatten" || power === "rain" || power === "growth") {
+        this.setToolEnabled(power, true);
+      }
     });
 
     document.getElementById("btn-save")?.addEventListener("click", () => this.persistence.save());
@@ -88,7 +93,7 @@ export class InputController {
     }
   }
 
-  private setToolEnabled(power: "flatten" | "rain", enabled: boolean): void {
+  private setToolEnabled(power: UnlockablePower, enabled: boolean): void {
     const spec = UNLOCKABLE_TOOLS.find((t) => t.power === power);
     if (!spec) return;
     const button = document.getElementById(spec.button) as HTMLButtonElement | null;
@@ -113,6 +118,7 @@ export class InputController {
       ["tool-raise", "raise"],
       ["tool-lower", "lower"],
       ["tool-flatten", "flatten"],
+      ["tool-growth", "growth"],
       ["tool-rain", "rain"],
     ] as const) {
       document.getElementById(id)?.classList.toggle("active", t === tool);
@@ -237,6 +243,8 @@ export class InputController {
       invocation = { power: "flatten", x: tile.x, y: tile.y, radius: this.brushRadius };
     } else if (this.tool === "rain") {
       invocation = { power: "rain", x: tile.x, y: tile.y, radius: this.brushRadius };
+    } else if (this.tool === "growth") {
+      invocation = { power: "growth", x: tile.x, y: tile.y, radius: this.brushRadius };
     } else {
       const lowering = this.shiftHeld ? this.tool === "raise" : this.tool === "lower";
       invocation = {

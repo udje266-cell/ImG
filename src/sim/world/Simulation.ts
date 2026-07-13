@@ -6,6 +6,7 @@ import { GameClock } from "../../core/time/GameClock";
 import type { GameEvents } from "../events";
 import { FaithSystem, type FaithConfig } from "../powers/FaithSystem";
 import { FlattenPower } from "../powers/FlattenPower";
+import { GrowthPower } from "../powers/GrowthPower";
 import { PowerSystem } from "../powers/PowerSystem";
 import { ProgressionSystem } from "../powers/ProgressionSystem";
 import { RainPower } from "../powers/RainPower";
@@ -66,6 +67,7 @@ export class Simulation {
     this.powers = new PowerSystem(this.bus);
     this.powers.register(new TerraformPower());
     this.powers.register(new FlattenPower());
+    this.powers.register(new GrowthPower());
     this.powers.register(new RainPower());
     this.weather = new WeatherSystem(this.terrain, this.rng);
     this.flora = new FloraSystem(this.terrain, this.rng);
