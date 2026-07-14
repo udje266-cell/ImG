@@ -16,9 +16,10 @@ import { generateWorld } from "../worldgen/WorldGenerator";
  * v3 → v4 : ajout des habitants (positions, besoins, ferveur, foyers, RNG).
  * v4 → v5 : ajout de la faune (positions, énergie, espèce, RNG).
  * v5 → v6 : ajout des villages/foyers (centres de village + huttes).
+ * v6 → v7 : vie de village — huttes par village (vhuts) + champs (fx, fy).
  * Une sauvegarde plus ancienne se charge sans la partie manquante.
  */
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 interface CellDeltas {
   /** Indices (y * width + x) des cellules modifiées vs la baseline. */
@@ -85,6 +86,15 @@ type AgentsState = ReturnType<Simulation["agents"]["serialize"]>;
 type FaunaState = ReturnType<Simulation["fauna"]["serialize"]>;
 type SettlementsState = ReturnType<Simulation["settlements"]["serialize"]>;
 
+/** Forme FIGÉE des villages en v6 (avant vie de village) — ne pas dériver. */
+interface SettlementsStateV6 {
+  vx: number[];
+  vy: number[];
+  vpop: number[];
+  dx: number[];
+  dy: number[];
+}
+
 export interface SaveDataV4 extends Omit<SaveDataV3, "version"> {
   version: 4;
   agents: AgentsState;
@@ -97,6 +107,11 @@ export interface SaveDataV5 extends Omit<SaveDataV4, "version"> {
 
 export interface SaveDataV6 extends Omit<SaveDataV5, "version"> {
   version: 6;
+  settlements: SettlementsStateV6;
+}
+
+export interface SaveDataV7 extends Omit<SaveDataV6, "version" | "settlements"> {
+  version: 7;
   settlements: SettlementsState;
 }
 
@@ -106,7 +121,8 @@ export type AnySaveData =
   | SaveDataV3
   | SaveDataV4
   | SaveDataV5
-  | SaveDataV6;
+  | SaveDataV6
+  | SaveDataV7;
 
 function diff(current: Float32Array, baseline: Float32Array): CellDeltas {
   const indices: number[] = [];
@@ -121,7 +137,7 @@ function diff(current: Float32Array, baseline: Float32Array): CellDeltas {
 }
 
 /** Capture l'état complet de la simulation en données JSON-sérialisables. */
-export function serializeSimulation(sim: Simulation): SaveDataV6 {
+export function serializeSimulation(sim: Simulation): SaveDataV7 {
   const { seed, width, height, seaLevel } = sim.worldConfig;
   const baseline = generateWorld(sim.worldConfig);
   return {
@@ -168,12 +184,12 @@ const EMPTY_AGENTS: AgentsState = {
   px: [], py: [], hunger: [], fatigue: [], fervour: [], piety: [], homeX: [], homeY: [], rngState: 0,
 };
 const EMPTY_FAUNA: FaunaState = { px: [], py: [], energy: [], species: [], cooldown: [], rngState: 0 };
-const EMPTY_SETTLEMENTS: SettlementsState = { vx: [], vy: [], vpop: [], dx: [], dy: [] };
+const EMPTY_SETTLEMENTS: SettlementsState = { vx: [], vy: [], vpop: [], vhuts: [], dx: [], dy: [], fx: [], fy: [] };
 
 /** Migre une sauvegarde v1 (sans météo/flore/habitants/faune/villages) vers la structure courante. */
-function migrateV1(data: SaveDataV1): SaveDataV6 {
+function migrateV1(data: SaveDataV1): SaveDataV7 {
   return {
-    version: 6,
+    version: 7,
     seed: data.seed,
     width: data.width,
     height: data.height,
@@ -191,23 +207,32 @@ function migrateV1(data: SaveDataV1): SaveDataV6 {
   };
 }
 
-function migrateV2(data: SaveDataV2): SaveDataV6 {
+function migrateV2(data: SaveDataV2): SaveDataV7 {
   return {
-    ...data, version: 6, flora: EMPTY_FLORA, agents: EMPTY_AGENTS,
+    ...data, version: 7, flora: EMPTY_FLORA, agents: EMPTY_AGENTS,
     fauna: EMPTY_FAUNA, settlements: EMPTY_SETTLEMENTS,
   };
 }
 
-function migrateV3(data: SaveDataV3): SaveDataV6 {
-  return { ...data, version: 6, agents: EMPTY_AGENTS, fauna: EMPTY_FAUNA, settlements: EMPTY_SETTLEMENTS };
+function migrateV3(data: SaveDataV3): SaveDataV7 {
+  return { ...data, version: 7, agents: EMPTY_AGENTS, fauna: EMPTY_FAUNA, settlements: EMPTY_SETTLEMENTS };
 }
 
-function migrateV4(data: SaveDataV4): SaveDataV6 {
-  return { ...data, version: 6, fauna: EMPTY_FAUNA, settlements: EMPTY_SETTLEMENTS };
+function migrateV4(data: SaveDataV4): SaveDataV7 {
+  return { ...data, version: 7, fauna: EMPTY_FAUNA, settlements: EMPTY_SETTLEMENTS };
 }
 
-function migrateV5(data: SaveDataV5): SaveDataV6 {
-  return { ...data, version: 6, settlements: EMPTY_SETTLEMENTS };
+function migrateV5(data: SaveDataV5): SaveDataV7 {
+  return { ...data, version: 7, settlements: EMPTY_SETTLEMENTS };
+}
+
+/** v6 → v7 : villages sans vie de village — huttes estimées au restore, aucun champ. */
+function migrateV6(data: SaveDataV6): SaveDataV7 {
+  return {
+    ...data,
+    version: 7,
+    settlements: { ...data.settlements, vhuts: [], fx: [], fy: [] },
+  };
 }
 
 /**
@@ -215,13 +240,14 @@ function migrateV5(data: SaveDataV5): SaveDataV6 {
  * est passé tel quel au constructeur (injection de l'horloge de mesure).
  */
 export function loadSimulation(raw: AnySaveData, options: { now?: () => number } = {}): Simulation {
-  let data: SaveDataV6;
+  let data: SaveDataV7;
   if (raw.version === 1) data = migrateV1(raw);
   else if (raw.version === 2) data = migrateV2(raw);
   else if (raw.version === 3) data = migrateV3(raw);
   else if (raw.version === 4) data = migrateV4(raw);
   else if (raw.version === 5) data = migrateV5(raw);
-  else if (raw.version === 6) data = raw;
+  else if (raw.version === 6) data = migrateV6(raw);
+  else if (raw.version === 7) data = raw;
   else throw new Error(`Save version ${(raw as { version: number }).version} not supported`);
 
   const sim = new Simulation({

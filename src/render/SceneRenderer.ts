@@ -204,9 +204,9 @@ export class SceneRenderer {
     this.faunaLayer = await FaunaLayer.create(sim, urls, (mesh) => this.scene.add(mesh));
   }
 
-  /** Pose les huttes et totems des villages (villages déjà fondés). */
+  /** Pose huttes, totems, champs et feux de camp (villages déjà fondés). */
   enableSettlements(): void {
-    this.settlements = new SettlementLayer(this.sim, (mesh) => this.scene.add(mesh));
+    this.settlements = new SettlementLayer(this.sim, (obj) => this.scene.add(obj));
   }
 
   /** Nombre de huttes posées (-1 si les villages ne sont pas rendus) — debug. */
@@ -264,6 +264,8 @@ export class SceneRenderer {
     this.forest?.refresh();
     this.inhabitants?.update();
     this.faunaLayer?.update();
+    // Feux de camp : flammes qui dansent, halos qui portent la nuit.
+    this.settlements?.update(now / 1000, daylight);
 
     this.rig.update();
     this.renderer.render(this.scene, this.rig.camera);

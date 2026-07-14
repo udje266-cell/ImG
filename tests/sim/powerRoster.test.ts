@@ -145,10 +145,12 @@ describe("Effets des pouvoirs (écriture sur variables partagées)", () => {
   it("Appel du Lointain rassemble les habitants vers un point", () => {
     const sim = godSim();
     for (let k = 0; k < 12; k++) sim.agents.spawn(32 + Math.cos(k) * 8, 32 + Math.sin(k) * 8);
+    // Ne mesure que les 12 appelés : des enfants peuvent naître AU FOYER
+    // pendant la marche (vie de village) et ne sont pas concernés par l'appel.
     const spread = (): number => {
       const s = sim.agents.snapshot();
       let max = 0;
-      for (let i = 0; i < s.count; i++) max = Math.max(max, Math.hypot(s.x[i]! - 32, s.y[i]! - 32));
+      for (let i = 0; i < 12; i++) max = Math.max(max, Math.hypot(s.x[i]! - 32, s.y[i]! - 32));
       return max;
     };
     const before = spread();

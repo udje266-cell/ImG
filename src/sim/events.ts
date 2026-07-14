@@ -24,4 +24,6 @@ export type GameEvents = {
   "progression:powerUnlocked": { power: PowerId; devotion: number };
   /** La flore a évolué ce tick — le rendu des forêts peut se rafraîchir. */
   "flora:updated": Record<string, never>;
+  /** Les villages ont changé (nouvelles huttes) — le rendu se reconstruit. */
+  "settlements:updated": Record<string, never>;
 };

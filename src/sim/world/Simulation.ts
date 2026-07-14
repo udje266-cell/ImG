@@ -25,6 +25,9 @@ import { seasonalOffset } from "../weather/seasons";
 import { WEATHER_INTERVAL, WeatherSystem } from "../weather/WeatherSystem";
 import { generateWorld } from "../worldgen/WorldGenerator";
 
+/** Cadence (ticks) du recensement/expansion des villages. */
+export const SETTLEMENT_INTERVAL = 200;
+
 /**
  * Root of the simulation — pure domain logic, zero browser APIs, fully
  * deterministic: same seed + same intents => same world, tick for tick.
@@ -124,11 +127,28 @@ export class Simulation {
         sim.faith.add(sim.agents.faithIncome());
       },
     });
+    // Croissance des villages : suit la population (naissances) et bâtit de
+    // nouvelles huttes quand un village dépasse sa capacité.
+    this.scheduler.add({
+      id: "settlements",
+      interval: SETTLEMENT_INTERVAL,
+      update: (sim) => {
+        if (sim.settlements.expand(sim.agents)) {
+          sim.bus.emit("settlements:updated", {});
+        }
+      },
+    });
   }
 
   /** Fonde les villages à partir des habitants présents (peuplement initial). */
   foundSettlements(): void {
     this.settlements.found(this.agents);
+    // Les champs sont semés fertiles : nourriture proche des villages.
+    for (const field of this.settlements.fields) {
+      const x = Math.floor(field.x);
+      const y = Math.floor(field.y);
+      this.flora.setDensity(x, y, Math.max(this.flora.densityAt(x, y), 0.75));
+    }
   }
 
   /** Durée du dernier passage de chaque système (ms) — overlay de perf. */

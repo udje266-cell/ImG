@@ -66,7 +66,8 @@ Le MVP (phases 0–1) doit prouver les fondations, pas empiler des features :
 
 ### Phase 5 — Société & économie
 - **Villages (première itération ✅)** — `SettlementSystem` : regroupe les habitants dispersés en grappes déterministes (échantillonnage du point le plus éloigné), fonde un village au barycentre de chacune (calé sur tuile constructible), y plante des huttes, puis **réassigne le foyer** de chaque habitant sur son village → la population se resserre autour des villages (« rest » y ramène chacun). Rendu : `SettlementLayer` (huttes torchis+chaume et totems low-poly instanciés, géométrie procédurale, 2 draw calls). Sauvegarde v6.
-- À venir : professions, stocks, production/consommation, prix émergents, commerce inter-villages ; croissance des villages avec la population (naissances).
+- **Vie de village ✅** — *Naissances* : un habitant prospère (nourri, reposé) fonde une famille ; l'enfant naît au foyer, plafond `MAX_POPULATION`. *Expansion* : recensement périodique (`SettlementSystem.expand`, toutes les `SETTLEMENT_INTERVAL` ticks) qui bâtit de nouvelles huttes quand un village dépasse sa capacité (spirale poursuivie). *Champs* : parcelles cultivées semées fertiles en couronne des villages. *Feux de camp* : un par village, flamme animée + halo chaud qui porte la nuit (`SettlementLayer.update`). Sauvegarde v7 (migration v6 : huttes estimées).
+- À venir : professions, stocks, production/consommation, prix émergents, commerce inter-villages ; morts naturelles et générations.
 
 ### Phase 6 — Religions dynamiques
 - **Moteur d'interprétation** : les peuples ne voient jamais la divinité, ils interprètent les événements (pluie = bénédiction, volcan = colère, éclipse = présage — cahier des charges §6) selon leur culture ; mémoire des interventions transmise en récits.

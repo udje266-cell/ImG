@@ -21,6 +21,12 @@ export const AGENT_DECISION_INTERVAL = 20;
 const BECKON_DURATION = 300;
 /** Vitesse de déplacement, en tuiles/tick. */
 const SPEED = 0.06;
+/** Naissances : cadence de vérification par habitant, seuils et plafond. */
+const BIRTH_CHECK_INTERVAL = 400;
+const BIRTH_HUNGER_MAX = 0.35; // il faut être bien nourri…
+const BIRTH_FATIGUE_MAX = 0.6; // …et pas épuisé
+const BIRTH_CHANCE = 0.3;
+export const MAX_POPULATION = 300;
 /** Rayon de recherche (tuiles) pour nourriture/foyer. */
 const SEARCH_RADIUS = 24;
 /** Foi générée par croyant et par tick, avant modulateurs. */
@@ -161,10 +167,25 @@ export class AgentSystem {
   }
 
   update(tick: number): void {
-    for (let i = 0; i < this.px.length; i++) {
+    // Borne figée : les enfants nés ce tick ne sont mis à jour qu'au suivant.
+    const n = this.px.length;
+    for (let i = 0; i < n; i++) {
       // Besoins qui montent avec le temps.
       this.hunger[i] = Math.min(1, this.hunger[i]! + 0.0008);
       this.fatigue[i] = Math.min(1, this.fatigue[i]! + 0.0006);
+
+      // Naissance : un habitant prospère (nourri, reposé) fonde une famille.
+      // L'enfant naît au foyer (le village) — la population croît avec la
+      // prospérité, que les Grâces divines peuvent entretenir (GDD §2).
+      if (
+        (tick + i * 37) % BIRTH_CHECK_INTERVAL === 0 &&
+        this.px.length < MAX_POPULATION &&
+        this.hunger[i]! < BIRTH_HUNGER_MAX &&
+        this.fatigue[i]! < BIRTH_FATIGUE_MAX &&
+        this.rng.float() < BIRTH_CHANCE
+      ) {
+        this.spawn(this.homeX[i]!, this.homeY[i]!);
+      }
 
       // Sous l'effet de l'Appel du Lointain : la cible reste le point d'appel,
       // l'IA normale est suspendue jusqu'à l'expiration du décompte.

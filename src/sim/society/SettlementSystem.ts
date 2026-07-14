@@ -21,8 +21,15 @@ export interface Village {
   x: number;
   y: number;
   population: number;
+  /** Nombre de huttes déjà bâties (l'expansion en ajoute avec la croissance). */
+  huts: number;
 }
 export interface Dwelling {
+  x: number;
+  y: number;
+}
+/** Parcelle cultivée d'un village (nourriture + visuel de civilisation). */
+export interface Field {
   x: number;
   y: number;
 }
@@ -33,6 +40,8 @@ const MAX_VILLAGES = 8;
 /** Une hutte par tranche d'habitants du village (bornée). */
 const DWELLERS_PER_HUT = 4;
 const MAX_HUTS_PER_VILLAGE = 14;
+/** Champs cultivés par village (posés en couronne au-delà des huttes). */
+const FIELDS_PER_VILLAGE = 2;
 /** Rayon de recherche (tuiles) d'une tuile constructible. */
 const BUILD_SEARCH_RADIUS = 6;
 /** Angle d'or : dispersion régulière des huttes autour du centre. */
@@ -41,6 +50,7 @@ const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 export class SettlementSystem {
   private readonly _villages: Village[] = [];
   private readonly _dwellings: Dwelling[] = [];
+  private readonly _fields: Field[] = [];
   private readonly rng: Rng;
 
   constructor(
@@ -56,6 +66,9 @@ export class SettlementSystem {
   get dwellings(): readonly Dwelling[] {
     return this._dwellings;
   }
+  get fields(): readonly Field[] {
+    return this._fields;
+  }
 
   /**
    * Fonde les villages à partir des habitants existants : grappes → centres →
@@ -64,6 +77,7 @@ export class SettlementSystem {
   found(agents: AgentSystem): void {
     this._villages.length = 0;
     this._dwellings.length = 0;
+    this._fields.length = 0;
     const snap = agents.snapshot();
     const n = snap.count;
     if (n === 0) return;
@@ -101,7 +115,7 @@ export class SettlementSystem {
       const spot = this.nearestBuildableTile(sumX[s]! / cnt[s]!, sumY[s]! / cnt[s]!);
       if (!spot) continue;
       seedToVillage[s] = this._villages.length;
-      this._villages.push({ x: spot.x, y: spot.y, population: cnt[s]! });
+      this._villages.push({ x: spot.x, y: spot.y, population: cnt[s]!, huts: 0 });
     }
     if (this._villages.length === 0) return;
 
@@ -113,10 +127,49 @@ export class SettlementSystem {
       agents.setHome(i, village.x, village.y);
     }
 
-    // Huttes autour de chaque centre.
+    // Huttes puis champs autour de chaque centre.
     for (const village of this._villages) {
       this.raiseDwellings(village);
+      this.sowFields(village);
     }
+  }
+
+  /**
+   * Croissance des villages : recompte la population de chaque village
+   * (habitant → village le plus proche) et bâtit de nouvelles huttes quand
+   * elle dépasse la capacité. Appelée périodiquement par la Simulation.
+   * Retourne true si quelque chose a changé (le rendu doit se reconstruire).
+   */
+  expand(agents: AgentSystem): boolean {
+    if (this._villages.length === 0) return false;
+    const snap = agents.snapshot();
+
+    const counts = new Int32Array(this._villages.length);
+    for (let i = 0; i < snap.count; i++) {
+      let best = 0;
+      let bestD = Infinity;
+      for (let v = 0; v < this._villages.length; v++) {
+        const dx = snap.x[i]! - this._villages[v]!.x;
+        const dy = snap.y[i]! - this._villages[v]!.y;
+        const d = dx * dx + dy * dy;
+        if (d < bestD) {
+          bestD = d;
+          best = v;
+        }
+      }
+      counts[best]!++;
+    }
+
+    let changed = false;
+    for (let v = 0; v < this._villages.length; v++) {
+      const village = this._villages[v]!;
+      if (counts[v]! !== village.population) {
+        village.population = counts[v]!;
+        changed = true;
+      }
+      if (this.raiseDwellings(village) > 0) changed = true;
+    }
+    return changed;
   }
 
   /**
@@ -158,14 +211,19 @@ export class SettlementSystem {
     return seeds;
   }
 
-  /** Plante les huttes du village en spirale sur des tuiles constructibles. */
-  private raiseDwellings(village: Village): void {
-    const huts = Math.max(
+  /**
+   * Complète les huttes du village jusqu'à sa capacité (1 hutte / 4 habitants,
+   * bornée) en spirale sur des tuiles constructibles. Incrémental : ne bâtit
+   * que les huttes manquantes, en poursuivant la spirale existante.
+   * Retourne le nombre de huttes ajoutées.
+   */
+  private raiseDwellings(village: Village): number {
+    const wanted = Math.max(
       1,
       Math.min(MAX_HUTS_PER_VILLAGE, Math.ceil(village.population / DWELLERS_PER_HUT)),
     );
     let placed = 0;
-    for (let h = 0; placed < huts && h < huts * 4; h++) {
+    for (let h = village.huts; village.huts < wanted && h < wanted * 4; h++) {
       const angle = h * GOLDEN_ANGLE + this.rng.float() * 0.5;
       const radius = 1.3 + Math.floor(h / 6) * 1.2 + this.rng.float() * 0.5;
       const tx = village.x + Math.cos(angle) * radius;
@@ -175,7 +233,28 @@ export class SettlementSystem {
       // Évite les huttes qui se chevauchent (< 0,8 tuile).
       if (this._dwellings.some((d) => (d.x - spot.x) ** 2 + (d.y - spot.y) ** 2 < 0.64)) continue;
       this._dwellings.push(spot);
+      village.huts++;
       placed++;
+    }
+    return placed;
+  }
+
+  /** Sème les champs du village en couronne, au-delà du cercle des huttes. */
+  private sowFields(village: Village): void {
+    let sown = 0;
+    for (let f = 0; sown < FIELDS_PER_VILLAGE && f < FIELDS_PER_VILLAGE * 5; f++) {
+      const angle = f * GOLDEN_ANGLE * 2.4 + this.rng.float() * 0.6;
+      const radius = 3.2 + this.rng.float() * 1.6;
+      const spot = this.nearestBuildableTile(
+        village.x + Math.cos(angle) * radius,
+        village.y + Math.sin(angle) * radius,
+      );
+      if (!spot) continue;
+      // À l'écart des huttes et des autres champs.
+      if (this._dwellings.some((d) => (d.x - spot.x) ** 2 + (d.y - spot.y) ** 2 < 1.2)) continue;
+      if (this._fields.some((p) => (p.x - spot.x) ** 2 + (p.y - spot.y) ** 2 < 2.5)) continue;
+      this._fields.push(spot);
+      sown++;
     }
   }
 
@@ -200,24 +279,40 @@ export class SettlementSystem {
     return null;
   }
 
-  serialize(): { vx: number[]; vy: number[]; vpop: number[]; dx: number[]; dy: number[] } {
+  serialize(): {
+    vx: number[]; vy: number[]; vpop: number[]; vhuts: number[];
+    dx: number[]; dy: number[]; fx: number[]; fy: number[];
+  } {
     return {
       vx: this._villages.map((v) => v.x),
       vy: this._villages.map((v) => v.y),
       vpop: this._villages.map((v) => v.population),
+      vhuts: this._villages.map((v) => v.huts),
       dx: this._dwellings.map((d) => d.x),
       dy: this._dwellings.map((d) => d.y),
+      fx: this._fields.map((f) => f.x),
+      fy: this._fields.map((f) => f.y),
     };
   }
 
   restore(data: ReturnType<SettlementSystem["serialize"]>): void {
     this._villages.length = 0;
     this._dwellings.length = 0;
+    this._fields.length = 0;
     for (let i = 0; i < data.vx.length; i++) {
-      this._villages.push({ x: data.vx[i]!, y: data.vy[i]!, population: data.vpop[i]! });
+      this._villages.push({
+        x: data.vx[i]!,
+        y: data.vy[i]!,
+        population: data.vpop[i]!,
+        // Sauvegarde v6 (sans vhuts) : estime depuis la population.
+        huts: data.vhuts[i] ?? Math.ceil(data.vpop[i]! / DWELLERS_PER_HUT),
+      });
     }
     for (let i = 0; i < data.dx.length; i++) {
       this._dwellings.push({ x: data.dx[i]!, y: data.dy[i]! });
+    }
+    for (let i = 0; i < data.fx.length; i++) {
+      this._fields.push({ x: data.fx[i]!, y: data.fy[i]! });
     }
   }
 }
