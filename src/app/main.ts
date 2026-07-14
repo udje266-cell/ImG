@@ -1,6 +1,8 @@
 import { SceneRenderer } from "../render/SceneRenderer";
+import { POWER_CATALOG } from "../sim/powers/catalog";
 import { loadSimulation, serializeSimulation, type AnySaveData } from "../sim/save/save";
 import { Simulation } from "../sim/world/Simulation";
+import { Grimoire } from "../ui/Grimoire";
 import { Hud } from "../ui/Hud";
 import { InputController, type GamePersistence } from "../ui/InputController";
 import { PerfOverlay } from "../ui/PerfOverlay";
@@ -53,10 +55,13 @@ function boot(): void {
   const input = new InputController(canvas, renderer, sim, loop, persistence);
   input.attach();
 
+  // Grimoire : onglet dédié qui pilote la sélection du pouvoir actif.
+  const grimoire = new Grimoire(sim, (meta) => input.setActivePower(meta));
+
   sim.bus.on("progression:powerUnlocked", ({ power }) => {
-    if (power === "flatten") hud.flash("Pouvoir débloqué : Aplanir ▦");
-    if (power === "growth") hud.flash("Pouvoir débloqué : Verdoiement 🌱");
-    if (power === "rain") hud.flash("Pouvoir débloqué : Pluie 🌧️");
+    const meta = POWER_CATALOG.find((m) => m.power === power);
+    if (meta) hud.flash(`Pouvoir débloqué : ${meta.name} ${meta.icon}`);
+    grimoire.open(); // révèle le nouveau pouvoir dans le grimoire
   });
 
   // Forêts + nuages 3D + habitants (hors showcase, qui a sa propre mise en scène).

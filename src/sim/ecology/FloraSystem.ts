@@ -130,6 +130,28 @@ export class FloraSystem {
     return touched;
   }
 
+  /**
+   * Calcine la végétation dans un disque (foudre, éruption, sécheresse
+   * extrême) : densité ramenée à zéro. Retourne le nombre de tuiles brûlées.
+   */
+  scorch(cx: number, cy: number, radius: number): number {
+    const terrain = this.terrain;
+    const r = Math.max(1, radius);
+    const r2 = r * r;
+    let burned = 0;
+    for (let y = Math.max(0, Math.ceil(cy - r)); y <= Math.min(terrain.height - 1, Math.floor(cy + r)); y++) {
+      for (let x = Math.max(0, Math.ceil(cx - r)); x <= Math.min(terrain.width - 1, Math.floor(cx + r)); x++) {
+        if ((x - cx) ** 2 + (y - cy) ** 2 > r2) continue;
+        const i = terrain.index(x, y);
+        if (this.density[i]! > 0) {
+          this.density[i] = 0;
+          burned++;
+        }
+      }
+    }
+    return burned;
+  }
+
   /** Un pas d'écologie (tous les FLORA_INTERVAL ticks). */
   update(): void {
     const terrain = this.terrain;

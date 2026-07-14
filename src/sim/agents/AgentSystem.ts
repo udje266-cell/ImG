@@ -17,6 +17,8 @@ import type { TerrainGrid } from "../terrain/TerrainGrid";
  * l'IA n'est ré-évaluée que tous les DECISION_INTERVAL ticks par agent (LOD).
  */
 export const AGENT_DECISION_INTERVAL = 20;
+/** Durée (ticks) pendant laquelle « Appel du Lointain » guide un habitant. */
+const BECKON_DURATION = 300;
 /** Vitesse de déplacement, en tuiles/tick. */
 const SPEED = 0.06;
 /** Rayon de recherche (tuiles) pour nourriture/foyer. */
@@ -48,6 +50,10 @@ export class AgentSystem {
   private readonly targetY: number[] = [];
   private readonly homeX: number[] = [];
   private readonly homeY: number[] = [];
+  // Influence « Appel du Lointain » : cible + décompte (transitoire, non sauvé).
+  private readonly beckonX: number[] = [];
+  private readonly beckonY: number[] = [];
+  private readonly beckonTicks: number[] = [];
   private readonly rng: Rng;
 
   constructor(
@@ -80,6 +86,49 @@ export class AgentSystem {
     return sum;
   }
 
+  /**
+   * Bénédiction sur une zone (école Grâces — « Corne d'Abondance », « Onction »)
+   * : soulage la faim/fatigue et ravive la ferveur des habitants du disque.
+   * Retourne le nombre d'habitants touchés.
+   */
+  bless(cx: number, cy: number, radius: number, hungerRelief: number, fervourGain: number): number {
+    const r2 = Math.max(1, radius) ** 2;
+    let touched = 0;
+    for (let i = 0; i < this.px.length; i++) {
+      const dx = this.px[i]! - cx;
+      const dy = this.py[i]! - cy;
+      if (dx * dx + dy * dy > r2) continue;
+      this.hunger[i] = Math.max(0, this.hunger[i]! - hungerRelief);
+      this.fatigue[i] = Math.max(0, this.fatigue[i]! - hungerRelief * 0.5);
+      this.fervour[i] = Math.min(3, this.fervour[i]! + fervourGain);
+      touched++;
+    }
+    return touched;
+  }
+
+  /**
+   * Appelle les habitants d'un rayon vers un point (école Murmures — « Appel
+   * du Lointain ») : fixe leur cible de déplacement sur la destination. Ils
+   * s'y rendent, puis reprennent leur vie. Retourne le nombre d'appelés.
+   */
+  beckon(cx: number, cy: number, radius: number): number {
+    const r2 = Math.max(1, radius) ** 2;
+    let called = 0;
+    for (let i = 0; i < this.px.length; i++) {
+      const dx = this.px[i]! - cx;
+      const dy = this.py[i]! - cy;
+      if (dx * dx + dy * dy > r2) continue;
+      this.beckonX[i] = cx;
+      this.beckonY[i] = cy;
+      this.beckonTicks[i] = BECKON_DURATION;
+      this.goal[i] = "wander";
+      this.targetX[i] = cx;
+      this.targetY[i] = cy;
+      called++;
+    }
+    return called;
+  }
+
   /** Fait naître un habitant à (x, y) — son foyer initial. */
   spawn(x: number, y: number): void {
     this.px.push(x);
@@ -93,6 +142,9 @@ export class AgentSystem {
     this.targetY.push(y);
     this.homeX.push(x);
     this.homeY.push(y);
+    this.beckonX.push(x);
+    this.beckonY.push(y);
+    this.beckonTicks.push(0);
   }
 
   /** Peuple le monde de `n` habitants sur des tuiles de terre viables. */
@@ -113,6 +165,17 @@ export class AgentSystem {
       // Besoins qui montent avec le temps.
       this.hunger[i] = Math.min(1, this.hunger[i]! + 0.0008);
       this.fatigue[i] = Math.min(1, this.fatigue[i]! + 0.0006);
+
+      // Sous l'effet de l'Appel du Lointain : la cible reste le point d'appel,
+      // l'IA normale est suspendue jusqu'à l'expiration du décompte.
+      if (this.beckonTicks[i]! > 0) {
+        this.beckonTicks[i]!--;
+        this.goal[i] = "wander";
+        this.targetX[i] = this.beckonX[i]!;
+        this.targetY[i] = this.beckonY[i]!;
+        this.act(i);
+        continue;
+      }
 
       // Décision (LOD : décalée par agent pour lisser le coût).
       if ((tick + i) % AGENT_DECISION_INTERVAL === 0) {
@@ -259,6 +322,9 @@ export class AgentSystem {
       this.targetY.push(data.py[i]!);
       this.homeX.push(data.homeX[i]!);
       this.homeY.push(data.homeY[i]!);
+      this.beckonX.push(data.px[i]!);
+      this.beckonY.push(data.py[i]!);
+      this.beckonTicks.push(0);
     }
     this.rng.setState(data.rngState);
     void this.bus; // réservé (événements de naissance/mort à venir)

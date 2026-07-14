@@ -14,7 +14,17 @@ export const POWER_UNLOCK_THRESHOLDS: Record<PowerId, number> = {
   terraform: 0,
   flatten: 120,
   growth: 180,
+  orogenesis: 260,
   rain: 300,
+  basin: 320,
+  drought: 360,
+  benediction: 420,
+  beckon: 480,
+  abundance: 540,
+  spawnHerd: 600,
+  lightning: 680,
+  earthquake: 780,
+  volcano: 900,
 };
 
 export class ProgressionSystem {
