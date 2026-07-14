@@ -6,18 +6,19 @@ import {
   HemisphereLight,
   Mesh,
   MeshBasicMaterial,
-  MeshLambertMaterial,
   PCFSoftShadowMap,
-  PlaneGeometry,
   Raycaster,
   RingGeometry,
   Scene,
   SRGBColorSpace,
   Vector2,
+  Vector3,
   WebGLRenderer,
 } from "three";
 import type { Simulation } from "../sim/world/Simulation";
 import { CameraRig } from "./CameraRig";
+import { Sky } from "./Sky";
+import { Water } from "./Water";
 import { FaunaLayer } from "./FaunaLayer";
 import { ForestLayer } from "./ForestLayer";
 import { InhabitantsLayer } from "./InhabitantsLayer";
@@ -48,7 +49,10 @@ export class SceneRenderer {
   private readonly hemi: HemisphereLight;
   private readonly fog: Fog;
   private readonly terrainMesh: TerrainMesh;
+  private readonly water: Water;
+  private readonly sky: Sky;
   private readonly weatherLayer: WeatherLayer;
+  private readonly sunDir = new Vector3();
   private readonly brushRing: Mesh;
   private readonly raycaster = new Raycaster();
   private readonly pointerNdc = new Vector2();
@@ -93,14 +97,12 @@ export class SceneRenderer {
       (mesh) => this.scene.remove(mesh),
     );
 
-    const water = new Mesh(
-      new PlaneGeometry(width, height),
-      new MeshLambertMaterial({ color: 0x3fa8d8, transparent: true, opacity: 0.72 }),
-    );
-    water.rotation.x = -Math.PI / 2;
-    water.position.set(width / 2, 0.15, height / 2);
-    water.receiveShadow = true;
-    this.scene.add(water);
+    this.water = new Water(width, height);
+    this.scene.add(this.water.mesh);
+
+    this.sky = new Sky(Math.max(width, height));
+    this.sky.mesh.position.set(width / 2, 0, height / 2);
+    this.scene.add(this.sky.mesh);
 
     // Soleil directionnel chaud, projetant des ombres douces sur le relief.
     this.sun = new DirectionalLight(0xfff0d6, DAY_SUN_INTENSITY);
@@ -252,6 +254,11 @@ export class SceneRenderer {
     if (daylight > 0.05) this.skyColor.lerp(DUSK_SKY, lowSun * 0.5 * daylight);
     this.scene.background = this.skyColor;
     this.fog.color.copy(this.skyColor);
+
+    // Eau animée : avance l'ondulation et oriente l'éclat sur le soleil courant.
+    this.sunDir.copy(this.sun.position).sub(this.sun.target.position);
+    this.water.update(now / 1000, this.sunDir, this.sun.color);
+    this.sky.update(this.skyColor, this.sun.color, this.sunDir);
 
     this.weatherLayer.update();
     this.forest?.refresh();

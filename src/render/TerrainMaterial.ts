@@ -25,7 +25,7 @@ const NAMES = ["Grass", "Sand", "Rock", "Dirt"] as const;
 /** Répétition des textures : 1 unité monde = 1 tuile ; ~1 motif / 6 tuiles. */
 const UV_SCALE = 1 / 6;
 
-function loadSet(loader: TextureLoader, name: string, kind: "BaseColor" | "Normal"): Texture {
+function loadSet(loader: TextureLoader, name: string, kind: "BaseColor" | "Normal" | "Roughness"): Texture {
   const tex = loader.load(`textures/terrain/${name}/${name}_${kind}.png`);
   tex.wrapS = RepeatWrapping;
   tex.wrapT = RepeatWrapping;
@@ -37,10 +37,11 @@ export function createTerrainMaterial(): Material {
   const loader = new TextureLoader();
   const base = NAMES.map((n) => loadSet(loader, n, "BaseColor"));
   const normal = NAMES.map((n) => loadSet(loader, n, "Normal"));
+  const rough = NAMES.map((n) => loadSet(loader, n, "Roughness"));
 
   const material = new MeshStandardMaterial({
     vertexColors: true,
-    roughness: 0.96,
+    roughness: 1.0,
     metalness: 0,
     // Intensité du relief normal-mappé (textures marquées + relief).
     normalScale: new Vector2(1.1, 1.1),
@@ -49,6 +50,7 @@ export function createTerrainMaterial(): Material {
   const uniforms = {
     uBase0: { value: base[0] }, uBase1: { value: base[1] }, uBase2: { value: base[2] }, uBase3: { value: base[3] },
     uNorm0: { value: normal[0] }, uNorm1: { value: normal[1] }, uNorm2: { value: normal[2] }, uNorm3: { value: normal[3] },
+    uRough0: { value: rough[0] }, uRough1: { value: rough[1] }, uRough2: { value: rough[2] }, uRough3: { value: rough[3] },
     uUvScale: { value: UV_SCALE },
   };
 
@@ -67,8 +69,22 @@ export function createTerrainMaterial(): Material {
     const header =
       "uniform sampler2D uBase0;uniform sampler2D uBase1;uniform sampler2D uBase2;uniform sampler2D uBase3;\n" +
       "uniform sampler2D uNorm0;uniform sampler2D uNorm1;uniform sampler2D uNorm2;uniform sampler2D uNorm3;\n" +
+      "uniform sampler2D uRough0;uniform sampler2D uRough1;uniform sampler2D uRough2;uniform sampler2D uRough3;\n" +
       "varying vec4 vSplat;varying vec2 vTerrainUv;\n";
     shader.fragmentShader = header + shader.fragmentShader;
+
+    // Rugosité PBR mélangée par le splat : sable/roche mats, herbe humide plus lustrée.
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <roughnessmap_fragment>",
+      `#include <roughnessmap_fragment>
+       vec4 rsw = vSplat / max(vSplat.x + vSplat.y + vSplat.z + vSplat.w, 0.0001);
+       float blendedRough =
+         texture2D(uRough0, vTerrainUv).g * rsw.x +
+         texture2D(uRough1, vTerrainUv).g * rsw.y +
+         texture2D(uRough2, vTerrainUv).g * rsw.z +
+         texture2D(uRough3, vTerrainUv).g * rsw.w;
+       roughnessFactor *= clamp(blendedRough + 0.15, 0.35, 1.0);`,
+    );
 
     // Normalise les poids et blend les couleurs de base.
     shader.fragmentShader = shader.fragmentShader.replace(
