@@ -29,9 +29,10 @@ de rendu, **sans toucher au jeu web** qui reste la version de référence jouabl
 | `ImG.Core/Terrain/TerrainGrid.cs` | grille de terrain (chunks, biomes dérivés) |
 | `ImG.Core/Powers/FaithSystem.cs`, `SparkSystem.cs` | ressources divines (Foi, Étincelle) |
 | `ImG.Core/Society/EraSystem.cs` | ères technologiques (primitif → fer, Savoir, politique) |
+| `ImG.Core/Weather/WeatherSystem.cs`, `Seasons.cs` | météo cellulaire (nuages, vent, pluie/neige) |
 
-La suite (météo, flore, faune, habitants, villages, religions, les 22 pouvoirs)
-se portera de la même façon, chaque système avec ses tests de non-régression.
+La suite (flore, faune, habitants, villages, religions, les 22 pouvoirs) se
+portera de la même façon, chaque système avec ses tests de non-régression.
 
 ## Compiler & tester
 
