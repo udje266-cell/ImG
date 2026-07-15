@@ -63,13 +63,22 @@ describe("SettlementSystem (docs/GDD.md §4 « Sociétés »)", () => {
     expect(settlements.dwellings.length).toBeGreaterThan(0);
   });
 
-  it("reassigns each inhabitant's home to a village centre", () => {
+  it("étale le foyer de chaque habitant autour d'un village (pas empilés)", () => {
     const { agents, settlements } = makeFounded(11, 48);
     const homes = agents.serialize();
-    const centres = new Set(settlements.villages.map((v) => `${v.x},${v.y}`));
+    // Chaque foyer est à proximité d'un centre de village (couronne d'habitat),
+    // mais pas forcément pile dessus — les habitants ne se superposent plus.
+    let exactlyOnCentre = 0;
     for (let i = 0; i < homes.homeX.length; i++) {
-      expect(centres.has(`${homes.homeX[i]},${homes.homeY[i]}`)).toBe(true);
+      let nearest = Infinity;
+      for (const v of settlements.villages) {
+        nearest = Math.min(nearest, Math.hypot(homes.homeX[i]! - v.x, homes.homeY[i]! - v.y));
+      }
+      expect(nearest).toBeLessThan(6); // dans la couronne du village
+      if (nearest === 0) exactlyOnCentre++;
     }
+    // La répartition en couronne fait que presque personne n'est pile au centre.
+    expect(exactlyOnCentre).toBeLessThan(homes.homeX.length);
   });
 
   it("is deterministic for a given seed", () => {

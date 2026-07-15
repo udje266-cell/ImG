@@ -44,6 +44,8 @@ const MAX_HUTS_PER_VILLAGE = 14;
 const FIELDS_PER_VILLAGE = 2;
 /** Rayon de recherche (tuiles) d'une tuile constructible. */
 const BUILD_SEARCH_RADIUS = 6;
+/** Écart minimal (au carré) entre deux maisons — évite les huttes entassées. */
+const MIN_HUT_SPACING2 = 1.6 * 1.6;
 /** Angle d'or : dispersion régulière des huttes autour du centre. */
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
@@ -119,12 +121,20 @@ export class SettlementSystem {
     }
     if (this._villages.length === 0) return;
 
-    // Foyer de chaque habitant = centre de son village (fallback : 1er village).
+    // Foyer de chaque habitant : réparti en couronne AUTOUR du centre de son
+    // village (pas tous empilés sur un seul point) → les habitants au repos
+    // s'étalent sur la place plutôt que de se superposer.
     for (let i = 0; i < n; i++) {
       let v = seedToVillage[assign[i]!]!;
       if (v < 0) v = 0;
       const village = this._villages[v]!;
-      agents.setHome(i, village.x, village.y);
+      const a = i * GOLDEN_ANGLE;
+      const r = 0.9 + (i % 6) * 0.6; // anneaux d'habitat successifs
+      const spot = this.nearestBuildableTile(
+        village.x + Math.cos(a) * r,
+        village.y + Math.sin(a) * r,
+      ) ?? village;
+      agents.setHome(i, spot.x, spot.y);
     }
 
     // Huttes puis champs autour de chaque centre.
@@ -223,15 +233,16 @@ export class SettlementSystem {
       Math.min(MAX_HUTS_PER_VILLAGE, Math.ceil(village.population / DWELLERS_PER_HUT)),
     );
     let placed = 0;
-    for (let h = village.huts; village.huts < wanted && h < wanted * 4; h++) {
-      const angle = h * GOLDEN_ANGLE + this.rng.float() * 0.5;
-      const radius = 1.3 + Math.floor(h / 6) * 1.2 + this.rng.float() * 0.5;
+    for (let h = village.huts; village.huts < wanted && h < wanted * 6; h++) {
+      // Spirale plus large : les maisons s'écartent nettement (pas entassées).
+      const angle = h * GOLDEN_ANGLE + this.rng.float() * 0.4;
+      const radius = 1.9 + Math.floor(h / 5) * 1.6 + this.rng.float() * 0.6;
       const tx = village.x + Math.cos(angle) * radius;
       const ty = village.y + Math.sin(angle) * radius;
       const spot = this.nearestBuildableTile(tx, ty);
       if (!spot) continue;
-      // Évite les huttes qui se chevauchent (< 0,8 tuile).
-      if (this._dwellings.some((d) => (d.x - spot.x) ** 2 + (d.y - spot.y) ** 2 < 0.64)) continue;
+      // Espacement minimal entre maisons : 1,6 tuile (elles ne se touchent plus).
+      if (this._dwellings.some((d) => (d.x - spot.x) ** 2 + (d.y - spot.y) ** 2 < MIN_HUT_SPACING2)) continue;
       this._dwellings.push(spot);
       village.huts++;
       placed++;
@@ -242,17 +253,17 @@ export class SettlementSystem {
   /** Sème les champs du village en couronne, au-delà du cercle des huttes. */
   private sowFields(village: Village): void {
     let sown = 0;
-    for (let f = 0; sown < FIELDS_PER_VILLAGE && f < FIELDS_PER_VILLAGE * 5; f++) {
+    for (let f = 0; sown < FIELDS_PER_VILLAGE && f < FIELDS_PER_VILLAGE * 6; f++) {
       const angle = f * GOLDEN_ANGLE * 2.4 + this.rng.float() * 0.6;
-      const radius = 3.2 + this.rng.float() * 1.6;
+      const radius = 4.6 + this.rng.float() * 1.8; // au-delà de la couronne des maisons
       const spot = this.nearestBuildableTile(
         village.x + Math.cos(angle) * radius,
         village.y + Math.sin(angle) * radius,
       );
       if (!spot) continue;
-      // À l'écart des huttes et des autres champs.
-      if (this._dwellings.some((d) => (d.x - spot.x) ** 2 + (d.y - spot.y) ** 2 < 1.2)) continue;
-      if (this._fields.some((p) => (p.x - spot.x) ** 2 + (p.y - spot.y) ** 2 < 2.5)) continue;
+      // Bien à l'écart des huttes et des autres champs.
+      if (this._dwellings.some((d) => (d.x - spot.x) ** 2 + (d.y - spot.y) ** 2 < 4)) continue;
+      if (this._fields.some((p) => (p.x - spot.x) ** 2 + (p.y - spot.y) ** 2 < 3)) continue;
       this._fields.push(spot);
       sown++;
     }

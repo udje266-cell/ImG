@@ -1,5 +1,6 @@
 import type { Rng } from "../../core/math/Rng";
 import { BARE_THRESHOLD, type FloraSystem } from "./FloraSystem";
+import { Biome } from "../worldgen/biomes";
 import type { TerrainGrid } from "../terrain/TerrainGrid";
 
 /**
@@ -28,9 +29,22 @@ const REPRO_COST = 0.42;
 const REPRO_COOLDOWN = 600; // ticks
 const EAT_RANGE = 1.1; // portée de prédation (tuiles)
 const FLEE_RANGE = 8; // détection de prédateur par l'herbivore
-const HUNT_RANGE = 30; // détection de proie par le prédateur
+const HUNT_RANGE = 16; // détection de proie par le prédateur (chasse locale)
+const FORAGE_RADIUS = 10; // rayon de pâture de l'herbivore (reste dans sa zone)
 const GRAZE_AMOUNT = 0.03; // flore consommée par bouchée
 const CAP: Record<Species, number> = { [HERBIVORE]: 500, [PREDATOR]: 90 };
+
+/**
+ * Habitats sauvages où vit la faune (cahier des charges — « les animaux dans
+ * une zone précise, forêt ou jungle »). On y fait naître les bêtes, et leur
+ * pâture les y maintient : le gibier ne se mêle plus aux villages.
+ */
+const WILD_BIOMES: readonly Biome[] = [
+  Biome.TemperateForest,
+  Biome.TropicalForest,
+  Biome.Savanna,
+  Biome.Taiga,
+];
 
 export interface FaunaSnapshot {
   count: number;
@@ -78,21 +92,56 @@ export class FaunaSystem {
     this.targetY.push(y);
   }
 
-  /** Peuple le monde d'herbivores et de prédateurs sur des tuiles de terre. */
+  /** Une tuile est-elle un habitat sauvage (forêt, jungle, savane, taïga) ? */
+  private isWildHabitat(x: number, y: number): boolean {
+    if (this.terrain.isWater(x, y)) return false;
+    return WILD_BIOMES.includes(this.terrain.biomeAt(x, y));
+  }
+
+  /**
+   * Peuple le monde : les **herbivores naissent dans les habitats sauvages**
+   * (forêts, jungles…), et les **prédateurs près des troupeaux** — la faune
+   * forme ainsi des zones distinctes, à l'écart des futurs villages. Si le
+   * monde manque de forêts, on se rabat sur toute terre un peu verte.
+   */
   populate(herbivores: number, predators: number): void {
-    const place = (species: Species, n: number): void => {
-      let placed = 0;
-      let guard = 0;
-      while (placed < n && guard++ < n * 200) {
-        const x = this.rng.int(0, this.terrain.width - 1);
-        const y = this.rng.int(0, this.terrain.height - 1);
-        if (this.terrain.isWater(x, y)) continue;
-        this.spawn(species, x + 0.5, y + 0.5);
-        placed++;
+    const herds: number[] = [];
+    let placed = 0;
+    let guard = 0;
+    while (placed < herbivores && guard++ < herbivores * 400) {
+      const x = this.rng.int(0, this.terrain.width - 1);
+      const y = this.rng.int(0, this.terrain.height - 1);
+      // D'abord les vrais habitats ; après beaucoup d'essais, tout sol verdoyant.
+      const lenient = guard > herbivores * 200;
+      if (lenient) {
+        if (this.terrain.isWater(x, y) || this.flora.densityAt(x, y) < BARE_THRESHOLD) continue;
+      } else if (!this.isWildHabitat(x, y)) {
+        continue;
       }
-    };
-    place(HERBIVORE, herbivores);
-    place(PREDATOR, predators);
+      this.spawn(HERBIVORE, x + 0.5, y + 0.5);
+      herds.push(this.px.length - 1);
+      placed++;
+    }
+
+    placed = 0;
+    guard = 0;
+    while (placed < predators && guard++ < predators * 200) {
+      let x: number;
+      let y: number;
+      if (herds.length > 0) {
+        const h = herds[this.rng.int(0, herds.length - 1)]!;
+        const a = this.rng.float() * Math.PI * 2;
+        const d = 2 + this.rng.float() * 6;
+        x = Math.floor(this.px[h]! + Math.cos(a) * d);
+        y = Math.floor(this.py[h]! + Math.sin(a) * d);
+      } else {
+        x = this.rng.int(0, this.terrain.width - 1);
+        y = this.rng.int(0, this.terrain.height - 1);
+      }
+      if (!this.terrain.inBounds(x, y) || this.terrain.isWater(x, y)) continue;
+      this.spawn(PREDATOR, x + 0.5, y + 0.5);
+      placed++;
+    }
   }
 
   /**
@@ -262,8 +311,8 @@ export class FaunaSystem {
     let bx = cx;
     let by = cy;
     for (let s = 0; s < 10; s++) {
-      const x = Math.floor(cx) + this.rng.int(-18, 18);
-      const y = Math.floor(cy) + this.rng.int(-18, 18);
+      const x = Math.floor(cx) + this.rng.int(-FORAGE_RADIUS, FORAGE_RADIUS);
+      const y = Math.floor(cy) + this.rng.int(-FORAGE_RADIUS, FORAGE_RADIUS);
       if (!this.terrain.inBounds(x, y) || this.terrain.isWater(x, y)) continue;
       const d = this.flora.densityAt(x, y);
       if (d > best) {
