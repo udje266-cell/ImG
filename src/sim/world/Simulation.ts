@@ -232,9 +232,11 @@ export class Simulation {
       if (best && bestScore > 0.15) break; // assez vert : on s'installe
     }
     const spot = best ?? { x: cx, y: cy };
-    // L'homme puis la femme (l'ordre fixe les modèles 3D du rendu).
-    this.agents.spawn(spot.x + 0.5, spot.y + 0.5);
-    this.agents.spawn(spot.x + 1.5, spot.y + 0.5);
+    // L'homme puis la femme (l'ordre fixe les modèles 3D du rendu) : les Deux
+    // Premiers forment le premier couple, souche de toute la descendance.
+    const man = this.agents.spawn(spot.x + 0.5, spot.y + 0.5);
+    const woman = this.agents.spawn(spot.x + 1.5, spot.y + 0.5);
+    this.agents.marry(man, woman);
   }
 
   /** Fonde les villages à partir des habitants présents (peuplement initial). */

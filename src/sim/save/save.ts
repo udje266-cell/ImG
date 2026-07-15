@@ -207,7 +207,9 @@ function applyDeltas(
 const EMPTY_WEATHER: WeatherState = { cloud: [], windAngle: 0, advectionX: 0, advectionY: 0, rngState: 0 };
 const EMPTY_FLORA: FloraState = { density: [], rngState: 0 };
 const EMPTY_AGENTS: AgentsState = {
-  px: [], py: [], hunger: [], fatigue: [], fervour: [], piety: [], homeX: [], homeY: [], rngState: 0,
+  px: [], py: [], hunger: [], fatigue: [], fervour: [], piety: [], courage: [], curiosity: [],
+  sociability: [], joy: [], fear: [], anger: [], grief: [], profession: [], spouse: [], parentA: [],
+  parentB: [], homeX: [], homeY: [], rngState: 0, personaRngState: 0, era: 0,
 };
 const EMPTY_FAUNA: FaunaState = { px: [], py: [], energy: [], species: [], cooldown: [], rngState: 0 };
 const EMPTY_SETTLEMENTS: SettlementsState = { vx: [], vy: [], vpop: [], vhuts: [], dx: [], dy: [], fx: [], fy: [] };

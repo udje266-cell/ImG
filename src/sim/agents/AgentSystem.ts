@@ -5,16 +5,26 @@ import { BARE_THRESHOLD, type FloraSystem } from "../ecology/FloraSystem";
 import type { TerrainGrid } from "../terrain/TerrainGrid";
 
 /**
- * Habitants (docs/GDD.md §4, cahier des charges §5 & §8) — première itération.
+ * Habitants (docs/GDD.md §4, cahier des charges §5 & §8) — IA vivante.
  *
- * Chaque habitant a des besoins (faim, repos, foi), une personnalité, une
- * mémoire courte et un objectif courant choisi par une IA utilitaire simple.
- * Le joueur ne les contrôle JAMAIS : il n'agit que sur le monde et, plus tard,
- * sur leurs pondérations (murmures). Les croyants génèrent de la Foi.
+ * Chaque habitant possède :
+ *  - des **besoins** (faim, repos, foi) qui montent avec le temps ;
+ *  - une **personnalité** à plusieurs traits (piété, courage, curiosité,
+ *    sociabilité) qui pondère ses décisions ;
+ *  - des **émotions** (joie, peur, colère, deuil) qui montent sur événement
+ *    (bénédiction, fléau, naissance) et s'estompent, modulant le comportement ;
+ *  - une **profession** cohérente avec l'ère (chasseur → forgeron → marchand →
+ *    ingénieur…), réattribuée quand la civilisation change d'âge ;
+ *  - une **famille** (conjoint, parents) ;
+ *  - un **objectif** courant choisi par une IA utilitaire.
  *
- * Déterministe (stream RNG "agents"), cadencé chaque tick. Structure orientée
- * données (tableaux typés parallèles) pour tenir des milliers d'agents ;
- * l'IA n'est ré-évaluée que tous les DECISION_INTERVAL ticks par agent (LOD).
+ * Le joueur ne les contrôle JAMAIS : il n'agit que sur le monde (et, plus tard,
+ * sur leurs pondérations via les murmures). Les croyants génèrent de la Foi.
+ *
+ * Déterministe. Le comportement « physique » (besoins, déplacement, naissances)
+ * tire sur le flux "agents" ; la personnalité tire sur un flux séparé
+ * "agents:personality" — ainsi enrichir l'IA ne perturbe pas la trajectoire
+ * historique du monde. Structure orientée données (tableaux parallèles).
  */
 export const AGENT_DECISION_INTERVAL = 20;
 /** Durée (ticks) pendant laquelle « Appel du Lointain » guide un habitant. */
@@ -34,14 +44,75 @@ const FAITH_PER_BELIEVER = 0.02;
 
 export type Goal = "forage" | "rest" | "wander" | "worship";
 
+/** Métiers, apparaissant au fil des âges (cohérence historique). */
+export type Profession =
+  | "hunter"
+  | "farmer"
+  | "smith"
+  | "priest"
+  | "merchant"
+  | "warrior"
+  | "scholar"
+  | "worker"
+  | "engineer";
+
+export const PROFESSION_LABEL: Record<Profession, string> = {
+  hunter: "Chasseur-cueilleur",
+  farmer: "Fermier",
+  smith: "Forgeron",
+  priest: "Prêtre",
+  merchant: "Marchand",
+  warrior: "Guerrier",
+  scholar: "Érudit",
+  worker: "Ouvrier",
+  engineer: "Ingénieur",
+};
+
+/** Métiers disponibles par ère (index = ère, cf. EraSystem). */
+const ERA_PROFESSIONS: readonly Profession[][] = [
+  ["hunter", "priest"], // Pierre
+  ["farmer", "smith", "priest", "hunter"], // Bronze
+  ["farmer", "smith", "priest", "merchant", "warrior"], // Fer
+  ["farmer", "smith", "priest", "merchant", "warrior"], // Moyen Âge
+  ["farmer", "smith", "priest", "merchant", "scholar"], // Renaissance
+  ["worker", "smith", "merchant", "scholar", "farmer"], // Industrielle
+  ["worker", "engineer", "merchant", "scholar"], // Moderne
+  ["engineer", "scholar", "merchant"], // Futur
+];
+
+export type Emotion = "joy" | "fear" | "anger" | "grief";
+export const EMOTION_LABEL: Record<Emotion, string> = {
+  joy: "Joie",
+  fear: "Peur",
+  anger: "Colère",
+  grief: "Deuil",
+};
+
+/** Fiche d'un habitant (inspection / tests). */
+export interface AgentProfile {
+  index: number;
+  profession: string;
+  traits: { piety: number; courage: number; curiosity: number; sociability: number };
+  dominantEmotion: string;
+  emotions: { joy: number; fear: number; anger: number; grief: number };
+  spouse: number;
+  parents: [number, number];
+  children: number;
+  goal: Goal;
+}
+
 export interface AgentSnapshot {
   count: number;
   x: Float32Array;
   y: Float32Array;
   goal: Uint8Array;
+  profession: Uint8Array;
 }
 
 const GOAL_CODES: Record<Goal, number> = { forage: 0, rest: 1, wander: 2, worship: 3 };
+const PROFESSION_CODES: Record<Profession, number> = {
+  hunter: 0, farmer: 1, smith: 2, priest: 3, merchant: 4, warrior: 5, scholar: 6, worker: 7, engineer: 8,
+};
 
 export class AgentSystem {
   // Stores SoA (structure de tableaux) — chauds, alignés par index d'agent.
@@ -50,7 +121,22 @@ export class AgentSystem {
   private readonly hunger: number[] = []; // 0 rassasié → 1 affamé
   private readonly fatigue: number[] = []; // 0 reposé → 1 épuisé
   private readonly fervour: number[] = []; // 0 → 3, ferveur envers le dieu
-  private readonly piety: number[] = []; // trait de personnalité [0,1]
+  // Personnalité (traits [0,1]) — la piété reste sur le flux "agents"
+  // (rétro-compatibilité) ; les autres traits sur le flux "agents:personality".
+  private readonly piety: number[] = [];
+  private readonly courage: number[] = [];
+  private readonly curiosity: number[] = [];
+  private readonly sociability: number[] = [];
+  // Émotions [0,1] : montent sur événement, s'estompent chaque tick.
+  private readonly joy: number[] = [];
+  private readonly fear: number[] = [];
+  private readonly anger: number[] = [];
+  private readonly grief: number[] = [];
+  private readonly profession: Profession[] = [];
+  // Famille : index du conjoint et des deux parents (-1 = aucun).
+  private readonly spouse: number[] = [];
+  private readonly parentA: number[] = [];
+  private readonly parentB: number[] = [];
   private readonly goal: Goal[] = [];
   private readonly targetX: number[] = [];
   private readonly targetY: number[] = [];
@@ -61,6 +147,9 @@ export class AgentSystem {
   private readonly beckonY: number[] = [];
   private readonly beckonTicks: number[] = [];
   private readonly rng: Rng;
+  private readonly personaRng: Rng;
+  /** Ère courante de la civilisation (pilote les professions). */
+  private currentEra = 0;
 
   constructor(
     private readonly terrain: TerrainGrid,
@@ -69,10 +158,23 @@ export class AgentSystem {
     private readonly bus: EventBus<GameEvents>,
   ) {
     this.rng = baseRng.fork("agents");
+    this.personaRng = baseRng.fork("agents:personality");
+    // Les métiers évoluent quand le peuple change d'âge.
+    this.bus.on("era:advanced", ({ era }) => this.onEraChanged(era));
   }
 
   get count(): number {
     return this.px.length;
+  }
+
+  /** Ère courante utilisée pour attribuer les professions. */
+  setEra(era: number): void {
+    this.currentEra = Math.max(0, Math.min(ERA_PROFESSIONS.length - 1, era));
+  }
+
+  private onEraChanged(era: number): void {
+    this.setEra(era);
+    for (let i = 0; i < this.px.length; i++) this.profession[i] = this.professionFor(i);
   }
 
   /**
@@ -85,6 +187,13 @@ export class AgentSystem {
     this.homeY[i] = y;
   }
 
+  /** Marie deux habitants (lien réciproque). */
+  marry(a: number, b: number): void {
+    if (a === b || a < 0 || b < 0 || a >= this.px.length || b >= this.px.length) return;
+    this.spouse[a] = b;
+    this.spouse[b] = a;
+  }
+
   /** Foi produite ce tick par l'ensemble des croyants. */
   faithIncome(): number {
     let sum = 0;
@@ -94,8 +203,8 @@ export class AgentSystem {
 
   /**
    * Bénédiction sur une zone (école Grâces — « Corne d'Abondance », « Onction »)
-   * : soulage la faim/fatigue et ravive la ferveur des habitants du disque.
-   * Retourne le nombre d'habitants touchés.
+   * : soulage la faim/fatigue, ravive la ferveur et emplit de joie les habitants
+   * du disque (la peur reflue). Retourne le nombre d'habitants touchés.
    */
   bless(cx: number, cy: number, radius: number, hungerRelief: number, fervourGain: number): number {
     const r2 = Math.max(1, radius) ** 2;
@@ -107,15 +216,18 @@ export class AgentSystem {
       this.hunger[i] = Math.max(0, this.hunger[i]! - hungerRelief);
       this.fatigue[i] = Math.max(0, this.fatigue[i]! - hungerRelief * 0.5);
       this.fervour[i] = Math.min(3, this.fervour[i]! + fervourGain);
+      this.joy[i] = Math.min(1, this.joy[i]! + 0.35);
+      this.fear[i] = this.fear[i]! * 0.5;
       touched++;
     }
     return touched;
   }
 
   /**
-   * Terreur divine (école Fléaux — « Ténèbres ») : la ferveur des habitants
-   * du disque s'effondre — l'effroi éteint la louange, même si le récit du
-   * fléau nourrira le culte de la Crainte. Retourne le nombre de frappés.
+   * Terreur divine (école Fléaux — « Ténèbres ») : la ferveur des habitants du
+   * disque s'effondre — l'effroi éteint la louange —, la peur et la colère
+   * enflent (le récit du fléau nourrira le culte de la Crainte). Retourne le
+   * nombre de frappés.
    */
   terrify(cx: number, cy: number, radius: number, fervourLoss: number): number {
     const r2 = Math.max(1, radius) ** 2;
@@ -125,6 +237,9 @@ export class AgentSystem {
       const dy = this.py[i]! - cy;
       if (dx * dx + dy * dy > r2) continue;
       this.fervour[i] = Math.max(0, this.fervour[i]! - fervourLoss);
+      this.fear[i] = Math.min(1, this.fear[i]! + 0.5);
+      this.anger[i] = Math.min(1, this.anger[i]! + 0.3);
+      this.joy[i] = this.joy[i]! * 0.4;
       struck++;
     }
     return struck;
@@ -153,14 +268,28 @@ export class AgentSystem {
     return called;
   }
 
-  /** Fait naître un habitant à (x, y) — son foyer initial. */
-  spawn(x: number, y: number): void {
+  /** Fait naître un habitant à (x, y) — son foyer initial. Retourne son index. */
+  spawn(x: number, y: number): number {
+    const i = this.px.length;
     this.px.push(x);
     this.py.push(y);
     this.hunger.push(this.rng.float() * 0.3);
     this.fatigue.push(this.rng.float() * 0.3);
     this.fervour.push(0.5 + this.rng.float());
     this.piety.push(this.rng.float());
+    // Traits de personnalité : flux dédié (n'altère pas la trajectoire du monde).
+    this.courage.push(this.personaRng.float());
+    this.curiosity.push(this.personaRng.float());
+    this.sociability.push(this.personaRng.float());
+    this.joy.push(0);
+    this.fear.push(0);
+    this.anger.push(0);
+    this.grief.push(0);
+    this.spouse.push(-1);
+    this.parentA.push(-1);
+    this.parentB.push(-1);
+    this.profession.push("hunter"); // provisoire, fixé juste après
+    this.profession[i] = this.professionFor(i);
     this.goal.push("wander");
     this.targetX.push(x);
     this.targetY.push(y);
@@ -169,18 +298,66 @@ export class AgentSystem {
     this.beckonX.push(x);
     this.beckonY.push(y);
     this.beckonTicks.push(0);
+    return i;
   }
 
-  /** Peuple le monde de `n` habitants sur des tuiles de terre viables. */
+  /** Peuple le monde de `n` habitants sur des tuiles de terre, mariés par couples. */
   populate(n: number): void {
-    let placed = 0;
+    const placed: number[] = [];
     let guard = 0;
-    while (placed < n && guard++ < n * 200) {
+    while (placed.length < n && guard++ < n * 200) {
       const x = this.rng.int(0, this.terrain.width - 1);
       const y = this.rng.int(0, this.terrain.height - 1);
       if (this.terrain.isWater(x, y)) continue;
-      this.spawn(x + 0.5, y + 0.5);
-      placed++;
+      placed.push(this.spawn(x + 0.5, y + 0.5));
+    }
+    // Couples : marie les habitants deux par deux (foyers du peuplement initial).
+    for (let k = 0; k + 1 < placed.length; k += 2) this.marry(placed[k]!, placed[k + 1]!);
+  }
+
+  /**
+   * Choisit la profession la mieux accordée aux traits de l'habitant parmi
+   * celles disponibles à l'ère courante (fonction pure des traits — pas de
+   * tirage aléatoire, donc déterministe et stable).
+   */
+  private professionFor(i: number): Profession {
+    const options = ERA_PROFESSIONS[this.currentEra] ?? ERA_PROFESSIONS[0]!;
+    let best = options[0]!;
+    let bestScore = -Infinity;
+    for (const p of options) {
+      const s = this.professionScore(p, i);
+      if (s > bestScore) {
+        bestScore = s;
+        best = p;
+      }
+    }
+    return best;
+  }
+
+  private professionScore(p: Profession, i: number): number {
+    const courage = this.courage[i]!;
+    const curiosity = this.curiosity[i]!;
+    const sociability = this.sociability[i]!;
+    const piety = this.piety[i]!;
+    switch (p) {
+      case "hunter":
+        return 0.35 + courage;
+      case "farmer":
+        return 0.5 + (1 - courage) * 0.2;
+      case "smith":
+        return 0.4 + courage * 0.25;
+      case "priest":
+        return piety * 1.25;
+      case "merchant":
+        return sociability * 1.1;
+      case "warrior":
+        return courage * 1.15;
+      case "scholar":
+        return curiosity * 1.2;
+      case "worker":
+        return 0.5 + (1 - curiosity) * 0.15;
+      case "engineer":
+        return curiosity * 1.15;
     }
   }
 
@@ -191,6 +368,7 @@ export class AgentSystem {
       // Besoins qui montent avec le temps.
       this.hunger[i] = Math.min(1, this.hunger[i]! + 0.0008);
       this.fatigue[i] = Math.min(1, this.fatigue[i]! + 0.0006);
+      this.decayEmotions(i);
 
       // Naissance : un habitant prospère (nourri, reposé) fonde une famille.
       // L'enfant naît au foyer (le village) — la population croît avec la
@@ -202,7 +380,10 @@ export class AgentSystem {
         this.fatigue[i]! < BIRTH_FATIGUE_MAX &&
         this.rng.float() < BIRTH_CHANCE
       ) {
-        this.spawn(this.homeX[i]!, this.homeY[i]!);
+        const child = this.spawn(this.homeX[i]!, this.homeY[i]!);
+        this.parentA[child] = i;
+        this.parentB[child] = this.spouse[i]!;
+        this.joy[i] = Math.min(1, this.joy[i]! + 0.5); // la naissance réjouit
       }
 
       // Sous l'effet de l'Appel du Lointain : la cible reste le point d'appel,
@@ -224,23 +405,38 @@ export class AgentSystem {
     }
   }
 
-  /** IA utilitaire : choisit l'objectif au besoin dominant. */
+  /** Les émotions s'estompent chaque tick ; une faim extrême nourrit l'angoisse. */
+  private decayEmotions(i: number): void {
+    this.joy[i] = this.joy[i]! * 0.995;
+    this.fear[i] = this.fear[i]! * 0.99;
+    this.anger[i] = this.anger[i]! * 0.99;
+    this.grief[i] = this.grief[i]! * 0.997;
+    if (this.hunger[i]! > 0.85) this.fear[i] = Math.min(1, this.fear[i]! + 0.003);
+  }
+
+  /** IA utilitaire : choisit l'objectif au besoin dominant, teinté d'émotion. */
   private decide(i: number): void {
     const hunger = this.hunger[i]!;
     const fatigue = this.fatigue[i]!;
     const piety = this.piety[i]!;
+    const fear = this.fear[i]!;
+    const joy = this.joy[i]!;
+    const grief = this.grief[i]!;
 
-    // Utilités concurrentes (émotions/besoins pondérés par la personnalité).
+    // Utilités concurrentes (besoins pondérés par la personnalité et l'émotion).
     const uForage = hunger * 1.2;
-    const uRest = fatigue;
-    const uWorship = piety * 0.6 * (this.fervour[i]! / 3);
-    const uWander = 0.25;
+    const uRest = fatigue + fear * 0.8; // la peur pousse à se replier au foyer
+    const uWorship = Math.max(0, piety * 0.6 * (this.fervour[i]! / 3) + joy * 0.2 - fear * 0.3);
+    const uWander = 0.25 + joy * 0.3 + this.sociability[i]! * 0.1;
+
+    // Le deuil rend apathique : toutes les envies s'émoussent.
+    const damp = 1 - grief * 0.4;
 
     let best: Goal = "wander";
-    let bestU = uWander;
-    if (uForage > bestU) (best = "forage"), (bestU = uForage);
-    if (uRest > bestU) (best = "rest"), (bestU = uRest);
-    if (uWorship > bestU) (best = "worship"), (bestU = uWorship);
+    let bestU = uWander * damp;
+    if (uForage * damp > bestU) (best = "forage"), (bestU = uForage * damp);
+    if (uRest * damp > bestU) (best = "rest"), (bestU = uRest * damp);
+    if (uWorship * damp > bestU) (best = "worship"), (bestU = uWorship * damp);
 
     if (best !== this.goal[i]) this.goal[i] = best;
     this.pickTarget(i, best);
@@ -314,41 +510,92 @@ export class AgentSystem {
         this.fatigue[i] = Math.max(0, this.fatigue[i]! - 0.5);
         break;
       case "worship":
-        // La prière renforce la ferveur (plafonnée).
+        // La prière renforce la ferveur (plafonnée) et apaise (petite joie).
         this.fervour[i] = Math.min(3, this.fervour[i]! + 0.05);
+        this.joy[i] = Math.min(1, this.joy[i]! + 0.02);
         break;
       case "wander":
         break;
     }
   }
 
-  /** Snapshot compact pour le rendu (positions + objectif courant). */
+  /** Émotion dominante d'un habitant (ou "calm" si serein). */
+  private dominantEmotion(i: number): Emotion | "calm" {
+    const es: [Emotion, number][] = [
+      ["joy", this.joy[i]!],
+      ["fear", this.fear[i]!],
+      ["anger", this.anger[i]!],
+      ["grief", this.grief[i]!],
+    ];
+    let best: Emotion | "calm" = "calm";
+    let bestV = 0.15; // seuil de sérénité
+    for (const [e, v] of es) if (v > bestV) (best = e), (bestV = v);
+    return best;
+  }
+
+  /** Fiche complète d'un habitant (inspection dans l'UI, tests). */
+  profile(i: number): AgentProfile {
+    let children = 0;
+    for (let k = 0; k < this.px.length; k++) {
+      if (this.parentA[k] === i || this.parentB[k] === i) children++;
+    }
+    const dom = this.dominantEmotion(i);
+    return {
+      index: i,
+      profession: PROFESSION_LABEL[this.profession[i]!],
+      traits: {
+        piety: this.piety[i]!,
+        courage: this.courage[i]!,
+        curiosity: this.curiosity[i]!,
+        sociability: this.sociability[i]!,
+      },
+      dominantEmotion: dom === "calm" ? "Serein" : EMOTION_LABEL[dom],
+      emotions: { joy: this.joy[i]!, fear: this.fear[i]!, anger: this.anger[i]!, grief: this.grief[i]! },
+      spouse: this.spouse[i]!,
+      parents: [this.parentA[i]!, this.parentB[i]!],
+      children,
+      goal: this.goal[i]!,
+    };
+  }
+
+  /** Snapshot compact pour le rendu (positions, objectif et métier courants). */
   snapshot(): AgentSnapshot {
     const n = this.px.length;
     const x = new Float32Array(n);
     const y = new Float32Array(n);
     const goal = new Uint8Array(n);
+    const profession = new Uint8Array(n);
     for (let i = 0; i < n; i++) {
       x[i] = this.px[i]!;
       y[i] = this.py[i]!;
       goal[i] = GOAL_CODES[this.goal[i]!];
+      profession[i] = PROFESSION_CODES[this.profession[i]!];
     }
-    return { count: n, x, y, goal };
+    return { count: n, x, y, goal, profession };
   }
 
   serialize(): {
-    px: number[]; py: number[]; hunger: number[]; fatigue: number[];
-    fervour: number[]; piety: number[]; homeX: number[]; homeY: number[]; rngState: number;
+    px: number[]; py: number[]; hunger: number[]; fatigue: number[]; fervour: number[];
+    piety: number[]; courage: number[]; curiosity: number[]; sociability: number[];
+    joy: number[]; fear: number[]; anger: number[]; grief: number[];
+    profession: number[]; spouse: number[]; parentA: number[]; parentB: number[];
+    homeX: number[]; homeY: number[]; rngState: number; personaRngState: number; era: number;
   } {
     return {
       px: [...this.px], py: [...this.py], hunger: [...this.hunger], fatigue: [...this.fatigue],
-      fervour: [...this.fervour], piety: [...this.piety], homeX: [...this.homeX],
-      homeY: [...this.homeY], rngState: this.rng.getState(),
+      fervour: [...this.fervour], piety: [...this.piety], courage: [...this.courage],
+      curiosity: [...this.curiosity], sociability: [...this.sociability],
+      joy: [...this.joy], fear: [...this.fear], anger: [...this.anger], grief: [...this.grief],
+      profession: this.profession.map((p) => PROFESSION_CODES[p]),
+      spouse: [...this.spouse], parentA: [...this.parentA], parentB: [...this.parentB],
+      homeX: [...this.homeX], homeY: [...this.homeY],
+      rngState: this.rng.getState(), personaRngState: this.personaRng.getState(), era: this.currentEra,
     };
   }
 
   restore(data: ReturnType<AgentSystem["serialize"]>): void {
-    this.px.length = 0;
+    this.clearAll();
+    const professionNames = Object.keys(PROFESSION_CODES) as Profession[];
     for (let i = 0; i < data.px.length; i++) {
       this.px.push(data.px[i]!);
       this.py.push(data.py[i]!);
@@ -356,6 +603,19 @@ export class AgentSystem {
       this.fatigue.push(data.fatigue[i]!);
       this.fervour.push(data.fervour[i]!);
       this.piety.push(data.piety[i]!);
+      // Rétro-compatibilité : les sauvegardes d'avant l'IA vivante n'ont pas ces
+      // champs — on comble avec des valeurs neutres et déterministes.
+      this.courage.push(data.courage?.[i] ?? 0.5);
+      this.curiosity.push(data.curiosity?.[i] ?? 0.5);
+      this.sociability.push(data.sociability?.[i] ?? 0.5);
+      this.joy.push(data.joy?.[i] ?? 0);
+      this.fear.push(data.fear?.[i] ?? 0);
+      this.anger.push(data.anger?.[i] ?? 0);
+      this.grief.push(data.grief?.[i] ?? 0);
+      this.profession.push(professionNames[data.profession?.[i] ?? 0] ?? "hunter");
+      this.spouse.push(data.spouse?.[i] ?? -1);
+      this.parentA.push(data.parentA?.[i] ?? -1);
+      this.parentB.push(data.parentB?.[i] ?? -1);
       this.goal.push("wander");
       this.targetX.push(data.px[i]!);
       this.targetY.push(data.py[i]!);
@@ -366,6 +626,19 @@ export class AgentSystem {
       this.beckonTicks.push(0);
     }
     this.rng.setState(data.rngState);
-    void this.bus; // réservé (événements de naissance/mort à venir)
+    if (data.personaRngState !== undefined) this.personaRng.setState(data.personaRngState);
+    if (data.era !== undefined) this.setEra(data.era);
+  }
+
+  private clearAll(): void {
+    const arrays = [
+      this.px, this.py, this.hunger, this.fatigue, this.fervour, this.piety, this.courage,
+      this.curiosity, this.sociability, this.joy, this.fear, this.anger, this.grief,
+      this.spouse, this.parentA, this.parentB, this.targetX, this.targetY, this.homeX,
+      this.homeY, this.beckonX, this.beckonY, this.beckonTicks,
+    ];
+    for (const a of arrays) a.length = 0;
+    this.profession.length = 0;
+    this.goal.length = 0;
   }
 }
