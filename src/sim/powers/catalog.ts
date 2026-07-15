@@ -13,6 +13,7 @@ export type School =
   | "geomancie"
   | "climatomancie"
   | "courroux"
+  | "fleaux"
   | "graces"
   | "murmures"
   | "edifications"
@@ -28,6 +29,7 @@ export const SCHOOLS: ReadonlyArray<{ id: School; label: string; icon: string }>
   { id: "murmures", label: "Murmures", icon: "🧭" },
   { id: "bestiaire", label: "Bestiaire", icon: "🦌" },
   { id: "courroux", label: "Courroux", icon: "⚡" },
+  { id: "fleaux", label: "Fléaux", icon: "🦗" },
   { id: "edifications", label: "Édifications", icon: "🏛️" },
   { id: "mysteres", label: "Mystères", icon: "🔮" },
   { id: "apotheose", label: "Apothéose", icon: "🌟" },
@@ -68,6 +70,7 @@ export const POWER_CATALOG: readonly PowerMeta[] = [
   // — Grâces —
   { key: "benediction", name: "Onction", school: "graces", tier: 2, icon: "✨", unlock: u.benediction, power: "benediction", desc: "Ravive la ferveur des habitants — la Foi afflue." },
   { key: "abundance", name: "Corne d'Abondance", school: "graces", tier: 3, icon: "🌾", unlock: u.abundance, power: "abundance", desc: "Verdure luxuriante et habitants rassasiés dans la zone." },
+  { key: "manna", name: "Manne Céleste", school: "graces", tier: 3, icon: "🍞", unlock: u.manna, power: "manna", desc: "Le pain du ciel rassasie ton peuple (Exode 16)." },
 
   // — Murmures —
   { key: "beckon", name: "Appel du Lointain", school: "murmures", tier: 2, icon: "🧭", unlock: u.beckon, power: "beckon", desc: "Attire les habitants vers un point, sans les contraindre." },
@@ -82,11 +85,19 @@ export const POWER_CATALOG: readonly PowerMeta[] = [
   { key: "volcano", name: "Réveil du Titan", school: "courroux", tier: 5, icon: "🌋", unlock: u.volcano, power: "volcano", desc: "Un cône volcanique jaillit ; tout brûle alentour." },
   { key: "meteor", name: "Larme du Ciel", school: "courroux", tier: 5, icon: "☄️", unlock: 999, power: null, desc: "Une météorite s'abat en cratère. (À venir.)" },
 
+  // — Fléaux (les plaies bibliques — Exode 7-12, Genèse 7) —
+  { key: "locusts", name: "Nuée de Sauterelles", school: "fleaux", tier: 3, icon: "🦗", unlock: u.locusts, power: "locusts", desc: "Toute herbe de la terre est dévorée (Exode 10)." },
+  { key: "livestockPlague", name: "Peste du Bétail", school: "fleaux", tier: 3, icon: "🐄", unlock: u.livestockPlague, power: "livestockPlague", desc: "La faune de la zone périt (Exode 9)." },
+  { key: "fireHail", name: "Grêle de Feu", school: "fleaux", tier: 4, icon: "🌩️", unlock: u.fireHail, power: "fireHail", desc: "Feu et grêle ravagent terre, bêtes et récoltes (Exode 9)." },
+  { key: "darkness", name: "Ténèbres", school: "fleaux", tier: 4, icon: "🌑", unlock: u.darkness, power: "darkness", desc: "L'effroi éteint la ferveur des habitants (Exode 10)." },
+  { key: "deluge", name: "Déluge", school: "fleaux", tier: 5, icon: "🌊", unlock: u.deluge, power: "deluge", desc: "Les écluses des cieux s'ouvrent (Genèse 7)." },
+
   // — Édifications —
   { key: "temple", name: "Sanctuaire", school: "edifications", tier: 3, icon: "🏛️", unlock: 999, power: null, desc: "Érige un temple qui rayonne la foi. (À venir.)" },
   { key: "bridge", name: "Pont de Pierre", school: "edifications", tier: 2, icon: "🌉", unlock: 999, power: null, desc: "Jette un pont entre deux rives. (À venir.)" },
 
   // — Mystères —
+  { key: "burningBush", name: "Buisson Ardent", school: "mysteres", tier: 3, icon: "🔥", unlock: u.burningBush, power: "burningBush", desc: "Un feu qui ne consume pas — la ferveur s'embrase (Exode 3)." },
   { key: "prophecy", name: "Vision Prophétique", school: "mysteres", tier: 3, icon: "👁️", unlock: 999, power: null, desc: "Révèle l'avenir proche d'un peuple. (À venir.)" },
   { key: "awakening", name: "Éveil Spirituel", school: "mysteres", tier: 4, icon: "🕯️", unlock: 999, power: null, desc: "Fait éclore une nouvelle croyance. (À venir.)" },
 

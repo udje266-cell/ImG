@@ -439,7 +439,10 @@ Le **grimoire** (`src/ui/Grimoire.ts`, onglet 📖 dédié) liste tout le catalo
 (`src/sim/powers/catalog.ts`) groupé par les 9 écoles, avec l'état de chaque
 pouvoir (disponible / verrouillé à un seuil de Dévotion / à venir).
 
-1. **Déjà en jeu (15 pouvoirs, effets réels sur les variables partagées)** :
+1. **Déjà en jeu (22 pouvoirs, effets réels sur les variables partagées)** :
+   - *Fléaux (nouvelle école, inspirée de la Sainte Bible)* : **Nuée de Sauterelles** (Exode 10 — dévore la végétation), **Peste du Bétail** (Exode 9 — la faune périt), **Grêle de Feu** (Exode 9 — flore + faune + terre criblée + effroi), **Ténèbres** (Exode 10 — la ferveur s'effondre), **Déluge** (Genèse 7 — nuages saturés + sol engorgé sur une vaste région).
+   - *Grâces (ajout biblique)* : **Manne Céleste** (Exode 16 — faim effacée sans passer par la flore).
+   - *Mystères (premier pouvoir réel)* : **Buisson Ardent** (Exode 3 — prodige pur, la ferveur s'embrase).
    - *Géomancie* : Soulèvement, Affaissement, Aplanir, **Orogenèse** (montagne), **Bassin** (cuvette/lac).
    - *Climatomancie* : **Verdoiement** (flore→capacité), Ondée (pluie), **Sécheresse** (assèche le sol).
    - *Grâces* : **Onction** (ferveur→Foi), **Corne d'Abondance** (flore + habitants rassasiés).

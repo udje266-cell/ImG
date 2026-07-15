@@ -57,6 +57,13 @@ const POWER_NATURE: Record<PowerId, MiracleNature> = {
   lightning: "courroux",
   earthquake: "courroux",
   volcano: "courroux",
+  manna: "bienfait",
+  burningBush: "prodige",
+  locusts: "courroux",
+  livestockPlague: "courroux",
+  fireHail: "courroux",
+  darkness: "courroux",
+  deluge: "courroux",
 };
 
 /** Ferveur gagnée par témoin selon la nature (la peur aussi fait croire). */

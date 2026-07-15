@@ -87,6 +87,41 @@ export interface SpawnHerdInvocation extends AreaParams {
   power: "spawnHerd";
 }
 
+/** Manne Céleste : le pain du ciel rassasie les habitants (Grâces — Exode 16). */
+export interface MannaInvocation extends AreaParams {
+  power: "manna";
+}
+
+/** Buisson Ardent : prodige qui embrase la ferveur (Mystères — Exode 3). */
+export interface BurningBushInvocation extends AreaParams {
+  power: "burningBush";
+}
+
+/** Nuée de Sauterelles : dévore toute végétation (Fléaux — Exode 10). */
+export interface LocustsInvocation extends AreaParams {
+  power: "locusts";
+}
+
+/** Peste du Bétail : la faune périt (Fléaux — Exode 9). */
+export interface LivestockPlagueInvocation extends AreaParams {
+  power: "livestockPlague";
+}
+
+/** Grêle de Feu : feu et glace ravagent la zone (Fléaux — Exode 9). */
+export interface FireHailInvocation extends AreaParams {
+  power: "fireHail";
+}
+
+/** Ténèbres : l'effroi éteint la ferveur (Fléaux — Exode 10). */
+export interface DarknessInvocation extends AreaParams {
+  power: "darkness";
+}
+
+/** Déluge : pluie diluvienne, le sol se sature (Fléaux — Genèse 7). */
+export interface DelugeInvocation extends AreaParams {
+  power: "deluge";
+}
+
 /** Union of all power invocations — grows as new powers are added. */
 export type PowerInvocation =
   | TerraformInvocation
@@ -102,7 +137,14 @@ export type PowerInvocation =
   | AbundanceInvocation
   | BenedictionInvocation
   | BeckonInvocation
-  | SpawnHerdInvocation;
+  | SpawnHerdInvocation
+  | MannaInvocation
+  | BurningBushInvocation
+  | LocustsInvocation
+  | LivestockPlagueInvocation
+  | FireHailInvocation
+  | DarknessInvocation
+  | DelugeInvocation;
 
 export type PowerId = PowerInvocation["power"];
 

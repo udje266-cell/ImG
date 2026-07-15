@@ -113,6 +113,24 @@ export class AgentSystem {
   }
 
   /**
+   * Terreur divine (école Fléaux — « Ténèbres ») : la ferveur des habitants
+   * du disque s'effondre — l'effroi éteint la louange, même si le récit du
+   * fléau nourrira le culte de la Crainte. Retourne le nombre de frappés.
+   */
+  terrify(cx: number, cy: number, radius: number, fervourLoss: number): number {
+    const r2 = Math.max(1, radius) ** 2;
+    let struck = 0;
+    for (let i = 0; i < this.px.length; i++) {
+      const dx = this.px[i]! - cx;
+      const dy = this.py[i]! - cy;
+      if (dx * dx + dy * dy > r2) continue;
+      this.fervour[i] = Math.max(0, this.fervour[i]! - fervourLoss);
+      struck++;
+    }
+    return struck;
+  }
+
+  /**
    * Appelle les habitants d'un rayon vers un point (école Murmures — « Appel
    * du Lointain ») : fixe leur cible de déplacement sur la destination. Ils
    * s'y rendent, puis reprennent leur vie. Retourne le nombre d'appelés.

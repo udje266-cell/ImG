@@ -10,7 +10,15 @@ import { GrowthPower } from "../powers/GrowthPower";
 import { BasinPower, OrogenesisPower } from "../powers/GeomancyPowers";
 import { DroughtPower } from "../powers/NaturePowers";
 import { EarthquakePower, LightningPower, VolcanoPower } from "../powers/CatastrophePowers";
-import { AbundancePower, BenedictionPower } from "../powers/GracePowers";
+import { AbundancePower, BenedictionPower, MannaPower } from "../powers/GracePowers";
+import { BurningBushPower } from "../powers/MysteryPowers";
+import {
+  DarknessPower,
+  DelugePower,
+  FireHailPower,
+  LivestockPlaguePower,
+  LocustsPower,
+} from "../powers/PlaguePowers";
 import { BeckonPower, SpawnHerdPower } from "../powers/InfluencePowers";
 import { PowerSystem } from "../powers/PowerSystem";
 import { ProgressionSystem } from "../powers/ProgressionSystem";
@@ -89,6 +97,13 @@ export class Simulation {
     this.powers.register(new BenedictionPower());
     this.powers.register(new BeckonPower());
     this.powers.register(new SpawnHerdPower());
+    this.powers.register(new MannaPower());
+    this.powers.register(new BurningBushPower());
+    this.powers.register(new LocustsPower());
+    this.powers.register(new LivestockPlaguePower());
+    this.powers.register(new FireHailPower());
+    this.powers.register(new DarknessPower());
+    this.powers.register(new DelugePower());
     this.weather = new WeatherSystem(this.terrain, this.rng);
     this.flora = new FloraSystem(this.terrain, this.rng);
     this.fauna = new FaunaSystem(this.terrain, this.flora, this.rng);
