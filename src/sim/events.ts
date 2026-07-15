@@ -26,6 +26,8 @@ export type GameEvents = {
   "flora:updated": Record<string, never>;
   /** Les villages ont changé (nouvelles huttes) — le rendu se reconstruit. */
   "settlements:updated": Record<string, never>;
+  /** Le peuple fonde son premier village (assez de descendants). */
+  "settlements:founded": Record<string, never>;
   /** Un prêtre s'élève dans un village (assez de récits de miracles). */
   "religion:priestOrdained": { village: number; doctrine: string };
   /** Un village érige un temple à son dieu — la Foi y rayonne. */

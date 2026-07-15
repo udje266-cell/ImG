@@ -65,6 +65,9 @@ function boot(): void {
   });
 
   // Religions : le style de règne du joueur façonne les cultes (phase 6).
+  sim.bus.on("settlements:founded", () => {
+    hud.flash("Ta lignée fonde son premier village 🏡");
+  });
   sim.bus.on("religion:priestOrdained", ({ village, doctrine }) => {
     hud.flash(`Un prêtre s'élève au village ${village + 1} — culte de la ${doctrine} 🙏`);
   });
@@ -77,10 +80,13 @@ function boot(): void {
     void renderer.enableForest(sim, "models/props/tree.glb");
     void renderer.enableCloudModel("models/props/cloud.glb");
     const freshWorld = sim.agents.count === 0;
-    if (freshWorld) sim.agents.populate(60); // peuplement de départ
-    // Villages : fondés au peuplement initial ; sur une reprise, ils viennent
-    // déjà de la sauvegarde (ne pas re-fonder pour ne pas déplacer les foyers).
-    if (freshWorld && sim.settlements.villages.length === 0) sim.foundSettlements();
+    // Genèse : le monde commence avec les Deux Premiers — un homme et une
+    // femme. Guidés par la divinité, ils prospéreront ; leur descendance
+    // fondera le premier village (puis les suivants), et ainsi de suite.
+    if (freshWorld) {
+      sim.genesis();
+      hud.flash("Au commencement : un homme et une femme. Guide-les. 🌍");
+    }
     void renderer.enableInhabitants(sim, [
       "models/characters/prehistoric-man.glb",
       "models/characters/prehistoric-woman.glb",

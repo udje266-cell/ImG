@@ -37,6 +37,8 @@ import { generateWorld } from "../worldgen/WorldGenerator";
 
 /** Cadence (ticks) du recensement/expansion des villages. */
 export const SETTLEMENT_INTERVAL = 200;
+/** Population à partir de laquelle le peuple fonde son premier village. */
+export const FIRST_VILLAGE_POPULATION = 6;
 
 /**
  * Root of the simulation — pure domain logic, zero browser APIs, fully
@@ -169,11 +171,56 @@ export class Simulation {
       id: "settlements",
       interval: SETTLEMENT_INTERVAL,
       update: (sim) => {
+        // Genèse : tant qu'aucun village n'existe, le peuple erre. Quand la
+        // lignée des Premiers atteint le seuil, il fonde son premier village.
+        if (sim.settlements.villages.length === 0) {
+          if (sim.agents.count >= FIRST_VILLAGE_POPULATION) {
+            sim.foundSettlements();
+            sim.bus.emit("settlements:founded", {});
+            sim.bus.emit("settlements:updated", {});
+          }
+          return;
+        }
         if (sim.settlements.expand(sim.agents)) {
           sim.bus.emit("settlements:updated", {});
         }
       },
     });
+  }
+
+  /**
+   * Genèse (« au commencement ») : fait naître les Deux Premiers — un homme
+   * et une femme — côte à côte sur la terre viable la plus proche du centre
+   * du monde, de préférence végétalisée (il faut bien manger). Le premier
+   * village naîtra de leur descendance (voir la passe "settlements").
+   */
+  genesis(): void {
+    const cx = Math.floor(this.terrain.width / 2);
+    const cy = Math.floor(this.terrain.height / 2);
+    let best: { x: number; y: number } | null = null;
+    let bestScore = -Infinity;
+    // Anneaux croissants : première bonne terre proche du centre.
+    for (let r = 0; r < Math.max(this.terrain.width, this.terrain.height) / 2; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = cx + dx;
+          const y = cy + dy;
+          if (!this.terrain.inBounds(x, y) || this.terrain.isWater(x, y)) continue;
+          if (!this.terrain.inBounds(x + 1, y) || this.terrain.isWater(x + 1, y)) continue;
+          const score = this.flora.densityAt(x, y) - r * 0.02; // vert et central
+          if (score > bestScore) {
+            bestScore = score;
+            best = { x, y };
+          }
+        }
+      }
+      if (best && bestScore > 0.15) break; // assez vert : on s'installe
+    }
+    const spot = best ?? { x: cx, y: cy };
+    // L'homme puis la femme (l'ordre fixe les modèles 3D du rendu).
+    this.agents.spawn(spot.x + 0.5, spot.y + 0.5);
+    this.agents.spawn(spot.x + 1.5, spot.y + 0.5);
   }
 
   /** Fonde les villages à partir des habitants présents (peuplement initial). */
