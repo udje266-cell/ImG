@@ -32,6 +32,7 @@ import { groundHeightAt } from "./TerrainMesh";
 const MAX_HUTS = 240;
 const MAX_TOTEMS = 8;
 const MAX_FIELDS = 24;
+const MAX_TEMPLES = 8;
 
 /** Applique une couleur unie (vertex colors) à une géométrie. */
 function paint(geo: BufferGeometry, hex: number): BufferGeometry {
@@ -94,6 +95,38 @@ function makeFieldGeometry(): BufferGeometry {
   return mergeGeometries(parts, false)!;
 }
 
+/**
+ * Temple mégalithique (religions, phase 6) : dolmen central — deux piliers
+ * massifs + table de pierre — entouré d'un demi-cercle de menhirs. Érigé par
+ * le village quand son culte est assez riche en récits.
+ */
+function makeTempleGeometry(): BufferGeometry {
+  const parts: BufferGeometry[] = [];
+  // Piliers du dolmen.
+  for (const side of [-1, 1]) {
+    const pillar = new BoxGeometry(0.28, 1.0, 0.4);
+    pillar.translate(side * 0.42, 0.5, 0);
+    paint(pillar, 0x9a938a); // granit clair
+    parts.push(pillar);
+  }
+  // Table (linteau) posée sur les piliers.
+  const cap = new BoxGeometry(1.5, 0.22, 0.62);
+  cap.translate(0, 1.11, 0);
+  paint(cap, 0x8a8378);
+  parts.push(cap);
+  // Demi-cercle de menhirs dressés autour.
+  for (let i = 0; i < 5; i++) {
+    const a = Math.PI * 0.25 + (i / 4) * Math.PI * 0.5 + Math.PI; // arc arrière
+    const h = 0.55 + (i % 2) * 0.2;
+    const menhir = new BoxGeometry(0.2, h, 0.26);
+    menhir.rotateY(a);
+    menhir.translate(Math.cos(a) * 1.35, h / 2, Math.sin(a) * 1.35);
+    paint(menhir, i % 2 === 0 ? 0x958e83 : 0x7f786d);
+    parts.push(menhir);
+  }
+  return mergeGeometries(parts, false)!;
+}
+
 /** Feu de camp : rondins croisés + cercle de pierres du foyer. */
 function makeCampfireBase(): BufferGeometry {
   const parts: BufferGeometry[] = [];
@@ -135,6 +168,7 @@ export class SettlementLayer {
   private readonly huts: InstancedMesh;
   private readonly totems: InstancedMesh;
   private readonly fieldsMesh: InstancedMesh;
+  private readonly temples: InstancedMesh;
   /** Feux de camp (un par village) : flammes, braises, fumée et lumière. */
   private readonly fires = new Group();
   private readonly firesAnim: Array<{
@@ -154,7 +188,8 @@ export class SettlementLayer {
     this.huts = new InstancedMesh(makeHutGeometry(), mat, MAX_HUTS);
     this.totems = new InstancedMesh(makeTotemGeometry(), mat, MAX_TOTEMS);
     this.fieldsMesh = new InstancedMesh(makeFieldGeometry(), mat, MAX_FIELDS);
-    for (const m of [this.huts, this.totems, this.fieldsMesh]) {
+    this.temples = new InstancedMesh(makeTempleGeometry(), mat, MAX_TEMPLES);
+    for (const m of [this.huts, this.totems, this.fieldsMesh, this.temples]) {
       m.frustumCulled = false;
       m.castShadow = true;
       m.receiveShadow = true;
@@ -164,6 +199,7 @@ export class SettlementLayer {
     addToScene(this.fires);
     this.build();
     sim.bus.on("settlements:updated", () => this.build());
+    sim.bus.on("religion:templeRaised", () => this.build());
   }
 
   /** (Re)pose huttes, totems, champs et feux depuis l'état des villages. */
@@ -208,7 +244,30 @@ export class SettlementLayer {
     this.fieldsMesh.count = f;
     this.fieldsMesh.instanceMatrix.needsUpdate = true;
 
+    // Temples : posés à l'écart du totem, dos aux huttes, pour les villages
+    // dont le culte en a érigé un.
+    let tp = 0;
+    const cults = this.sim.religion.villageCults;
+    for (let v = 0; v < villages.length && tp < MAX_TEMPLES; v++) {
+      if (!cults[v]?.temple) continue;
+      const village = villages[v]!;
+      const tx = village.x - 1.6;
+      const ty = village.y - 1.4;
+      this.dummy.position.set(tx, groundHeightAt(terrain, tx, ty), ty);
+      this.dummy.rotation.set(0, hash01(tx, ty) * Math.PI * 2, 0);
+      this.dummy.scale.setScalar(1);
+      this.dummy.updateMatrix();
+      this.temples.setMatrixAt(tp++, this.dummy.matrix);
+    }
+    this.temples.count = tp;
+    this.temples.instanceMatrix.needsUpdate = true;
+
     this.buildCampfires();
+  }
+
+  /** Nombre de temples érigés (debug/vérification). */
+  get templeCount(): number {
+    return this.temples.count;
   }
 
   /**

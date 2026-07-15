@@ -79,8 +79,8 @@ Le MVP (phases 0–1) doit prouver les fondations, pas empiler des features :
 - À venir (qualité) : particules feuilles/braises, impostors LOD pour forêts denses, audio (ambiances jour/nuit, crépitement du feu).
 
 ### Phase 6 — Religions dynamiques
-- **Moteur d'interprétation** : les peuples ne voient jamais la divinité, ils interprètent les événements (pluie = bénédiction, volcan = colère, éclipse = présage — cahier des charges §6) selon leur culture ; mémoire des interventions transmise en récits.
-- Témoins de miracles → récits → dogmes ; ferveur, prêtres, temples, sacrifices, schismes, conversions ; dieux rivaux simulés.
+- **Moteur d'interprétation (première itération ✅)** — `ReligionSystem` : chaque miracle a des **témoins** (habitants proches, ferveur ravivée selon la nature du prodige : bienfait/courroux/prodige) ; un miracle **sans témoin ne devient jamais un récit**. Les récits rejoignent la **mémoire du village** le plus proche (avec oubli lent) ; la composante dominante fait émerger une **doctrine** (culte de la Providence / de la Crainte / des Prodiges) — le STYLE de règne du joueur façonne les cultes. Assez de récits → un **prêtre** s'élève (prêche périodique, ferveur entretenue) ; la dévotion continue → le village érige un **temple** mégalithique (dolmen + menhirs, rendu instancié) qui rayonne une Foi passive. Sauvegarde v8.
+- À venir : sacrifices, schismes, conversions entre villages, dieux rivaux simulés, éclipses/présages interprétés.
 
 ### Phase 7 — Technologies
 - Découverte par la pratique, diffusion par contact ; **8 ères** : pierre → bronze → fer → moyen âge → renaissance → industrielle → moderne → futur (cahier des charges §9).

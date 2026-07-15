@@ -18,7 +18,7 @@ export type GameEvents = {
   /** Chunks whose biomes were recomputed this tick (renderer redraws them). */
   "terrain:modified": { chunkIds: number[] };
   "intent:invokePower": PowerInvocation;
-  "power:invoked": { power: PowerId; cost: number };
+  "power:invoked": { power: PowerId; cost: number; x: number; y: number; radius: number };
   "power:rejected": { power: PowerId; reason: PowerRejectionReason };
   /** Un seuil de dévotion vient d'être franchi (cahier des charges §7). */
   "progression:powerUnlocked": { power: PowerId; devotion: number };
@@ -26,4 +26,8 @@ export type GameEvents = {
   "flora:updated": Record<string, never>;
   /** Les villages ont changé (nouvelles huttes) — le rendu se reconstruit. */
   "settlements:updated": Record<string, never>;
+  /** Un prêtre s'élève dans un village (assez de récits de miracles). */
+  "religion:priestOrdained": { village: number; doctrine: string };
+  /** Un village érige un temple à son dieu — la Foi y rayonne. */
+  "religion:templeRaised": { village: number; doctrine: string };
 };

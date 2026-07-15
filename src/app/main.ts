@@ -64,6 +64,14 @@ function boot(): void {
     grimoire.open(); // révèle le nouveau pouvoir dans le grimoire
   });
 
+  // Religions : le style de règne du joueur façonne les cultes (phase 6).
+  sim.bus.on("religion:priestOrdained", ({ village, doctrine }) => {
+    hud.flash(`Un prêtre s'élève au village ${village + 1} — culte de la ${doctrine} 🙏`);
+  });
+  sim.bus.on("religion:templeRaised", ({ village, doctrine }) => {
+    hud.flash(`Le village ${village + 1} érige un temple à la ${doctrine} 🏛️`);
+  });
+
   // Forêts + nuages 3D + habitants (hors showcase, qui a sa propre mise en scène).
   if (!params.has("showcase")) {
     void renderer.enableForest(sim, "models/props/tree.glb");

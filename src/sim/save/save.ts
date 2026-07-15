@@ -17,9 +17,10 @@ import { generateWorld } from "../worldgen/WorldGenerator";
  * v4 → v5 : ajout de la faune (positions, énergie, espèce, RNG).
  * v5 → v6 : ajout des villages/foyers (centres de village + huttes).
  * v6 → v7 : vie de village — huttes par village (vhuts) + champs (fx, fy).
+ * v7 → v8 : religions — cultes par village (mémoire, prêtres, temples).
  * Une sauvegarde plus ancienne se charge sans la partie manquante.
  */
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 interface CellDeltas {
   /** Indices (y * width + x) des cellules modifiées vs la baseline. */
@@ -85,6 +86,7 @@ export interface SaveDataV3 {
 type AgentsState = ReturnType<Simulation["agents"]["serialize"]>;
 type FaunaState = ReturnType<Simulation["fauna"]["serialize"]>;
 type SettlementsState = ReturnType<Simulation["settlements"]["serialize"]>;
+type ReligionState = ReturnType<Simulation["religion"]["serialize"]>;
 
 /** Forme FIGÉE des villages en v6 (avant vie de village) — ne pas dériver. */
 interface SettlementsStateV6 {
@@ -115,6 +117,11 @@ export interface SaveDataV7 extends Omit<SaveDataV6, "version" | "settlements"> 
   settlements: SettlementsState;
 }
 
+export interface SaveDataV8 extends Omit<SaveDataV7, "version"> {
+  version: 8;
+  religion: ReligionState;
+}
+
 export type AnySaveData =
   | SaveDataV1
   | SaveDataV2
@@ -122,7 +129,8 @@ export type AnySaveData =
   | SaveDataV4
   | SaveDataV5
   | SaveDataV6
-  | SaveDataV7;
+  | SaveDataV7
+  | SaveDataV8;
 
 function diff(current: Float32Array, baseline: Float32Array): CellDeltas {
   const indices: number[] = [];
@@ -137,7 +145,7 @@ function diff(current: Float32Array, baseline: Float32Array): CellDeltas {
 }
 
 /** Capture l'état complet de la simulation en données JSON-sérialisables. */
-export function serializeSimulation(sim: Simulation): SaveDataV7 {
+export function serializeSimulation(sim: Simulation): SaveDataV8 {
   const { seed, width, height, seaLevel } = sim.worldConfig;
   const baseline = generateWorld(sim.worldConfig);
   return {
@@ -152,6 +160,7 @@ export function serializeSimulation(sim: Simulation): SaveDataV7 {
     agents: sim.agents.serialize(),
     fauna: sim.fauna.serialize(),
     settlements: sim.settlements.serialize(),
+    religion: sim.religion.serialize(),
     heightDeltas: diff(sim.terrain.heightMap, baseline.heightMap),
     moistureDeltas: diff(sim.terrain.moisture, baseline.moisture),
     weather: sim.weather.serialize(),
@@ -185,11 +194,12 @@ const EMPTY_AGENTS: AgentsState = {
 };
 const EMPTY_FAUNA: FaunaState = { px: [], py: [], energy: [], species: [], cooldown: [], rngState: 0 };
 const EMPTY_SETTLEMENTS: SettlementsState = { vx: [], vy: [], vpop: [], vhuts: [], dx: [], dy: [], fx: [], fy: [] };
+const EMPTY_RELIGION: ReligionState = { bienfait: [], courroux: [], prodige: [], priest: [], temple: [] };
 
 /** Migre une sauvegarde v1 (sans météo/flore/habitants/faune/villages) vers la structure courante. */
-function migrateV1(data: SaveDataV1): SaveDataV7 {
+function migrateV1(data: SaveDataV1): SaveDataV8 {
   return {
-    version: 7,
+    version: 8,
     seed: data.seed,
     width: data.width,
     height: data.height,
@@ -204,35 +214,42 @@ function migrateV1(data: SaveDataV1): SaveDataV7 {
     agents: EMPTY_AGENTS,
     fauna: EMPTY_FAUNA,
     settlements: EMPTY_SETTLEMENTS,
+    religion: EMPTY_RELIGION,
   };
 }
 
-function migrateV2(data: SaveDataV2): SaveDataV7 {
+function migrateV2(data: SaveDataV2): SaveDataV8 {
   return {
-    ...data, version: 7, flora: EMPTY_FLORA, agents: EMPTY_AGENTS,
-    fauna: EMPTY_FAUNA, settlements: EMPTY_SETTLEMENTS,
+    ...data, version: 8, flora: EMPTY_FLORA, agents: EMPTY_AGENTS,
+    fauna: EMPTY_FAUNA, settlements: EMPTY_SETTLEMENTS, religion: EMPTY_RELIGION,
   };
 }
 
-function migrateV3(data: SaveDataV3): SaveDataV7 {
-  return { ...data, version: 7, agents: EMPTY_AGENTS, fauna: EMPTY_FAUNA, settlements: EMPTY_SETTLEMENTS };
+function migrateV3(data: SaveDataV3): SaveDataV8 {
+  return { ...data, version: 8, agents: EMPTY_AGENTS, fauna: EMPTY_FAUNA, settlements: EMPTY_SETTLEMENTS, religion: EMPTY_RELIGION };
 }
 
-function migrateV4(data: SaveDataV4): SaveDataV7 {
-  return { ...data, version: 7, fauna: EMPTY_FAUNA, settlements: EMPTY_SETTLEMENTS };
+function migrateV4(data: SaveDataV4): SaveDataV8 {
+  return { ...data, version: 8, fauna: EMPTY_FAUNA, settlements: EMPTY_SETTLEMENTS, religion: EMPTY_RELIGION };
 }
 
-function migrateV5(data: SaveDataV5): SaveDataV7 {
-  return { ...data, version: 7, settlements: EMPTY_SETTLEMENTS };
+function migrateV5(data: SaveDataV5): SaveDataV8 {
+  return { ...data, version: 8, settlements: EMPTY_SETTLEMENTS, religion: EMPTY_RELIGION };
 }
 
 /** v6 → v7 : villages sans vie de village — huttes estimées au restore, aucun champ. */
-function migrateV6(data: SaveDataV6): SaveDataV7 {
+function migrateV6(data: SaveDataV6): SaveDataV8 {
   return {
     ...data,
-    version: 7,
+    version: 8,
     settlements: { ...data.settlements, vhuts: [], fx: [], fy: [] },
+    religion: EMPTY_RELIGION,
   };
+}
+
+/** v7 → v8 : pas encore de religions — cultes vierges. */
+function migrateV7(data: SaveDataV7): SaveDataV8 {
+  return { ...data, version: 8, religion: EMPTY_RELIGION };
 }
 
 /**
@@ -240,14 +257,15 @@ function migrateV6(data: SaveDataV6): SaveDataV7 {
  * est passé tel quel au constructeur (injection de l'horloge de mesure).
  */
 export function loadSimulation(raw: AnySaveData, options: { now?: () => number } = {}): Simulation {
-  let data: SaveDataV7;
+  let data: SaveDataV8;
   if (raw.version === 1) data = migrateV1(raw);
   else if (raw.version === 2) data = migrateV2(raw);
   else if (raw.version === 3) data = migrateV3(raw);
   else if (raw.version === 4) data = migrateV4(raw);
   else if (raw.version === 5) data = migrateV5(raw);
   else if (raw.version === 6) data = migrateV6(raw);
-  else if (raw.version === 7) data = raw;
+  else if (raw.version === 7) data = migrateV7(raw);
+  else if (raw.version === 8) data = raw;
   else throw new Error(`Save version ${(raw as { version: number }).version} not supported`);
 
   const sim = new Simulation({
@@ -271,6 +289,7 @@ export function loadSimulation(raw: AnySaveData, options: { now?: () => number }
   if (data.agents.px.length > 0) sim.agents.restore(data.agents);
   if (data.fauna.px.length > 0) sim.fauna.restore(data.fauna);
   if (data.settlements.vx.length > 0) sim.settlements.restore(data.settlements);
+  if (data.religion.bienfait.length > 0) sim.religion.restore(data.religion);
 
   // Ré-applique la saison du tick chargé, puis re-classifie.
   sim.reapplySeasonalOffset();

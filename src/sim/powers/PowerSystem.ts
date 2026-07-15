@@ -49,7 +49,13 @@ export class PowerSystem {
         continue;
       }
       power.apply(sim, invocation);
-      sim.bus.emit("power:invoked", { power: invocation.power, cost });
+      sim.bus.emit("power:invoked", {
+        power: invocation.power,
+        cost,
+        x: invocation.x,
+        y: invocation.y,
+        radius: invocation.radius,
+      });
     }
   }
 }

@@ -18,6 +18,7 @@ import { RainPower } from "../powers/RainPower";
 import { TerraformPower } from "../powers/TerraformPower";
 import type { TerrainGrid } from "../terrain/TerrainGrid";
 import { AgentSystem } from "../agents/AgentSystem";
+import { RELIGION_INTERVAL, ReligionSystem } from "../religion/ReligionSystem";
 import { SettlementSystem } from "../society/SettlementSystem";
 import { FaunaSystem } from "../ecology/FaunaSystem";
 import { FLORA_INTERVAL, FloraSystem } from "../ecology/FloraSystem";
@@ -57,6 +58,7 @@ export class Simulation {
   readonly fauna: FaunaSystem;
   readonly agents: AgentSystem;
   readonly settlements: SettlementSystem;
+  readonly religion: ReligionSystem;
   /** Config effective du monde — nécessaire à la sauvegarde (seed + deltas). */
   readonly worldConfig: { seed: number; width: number; height: number; seaLevel: number };
   private readonly scheduler: Scheduler<Simulation>;
@@ -92,6 +94,7 @@ export class Simulation {
     this.fauna = new FaunaSystem(this.terrain, this.flora, this.rng);
     this.agents = new AgentSystem(this.terrain, this.flora, this.rng, this.bus);
     this.settlements = new SettlementSystem(this.terrain, this.rng);
+    this.religion = new ReligionSystem(this.settlements, this.agents, this.bus);
     this.applySeasonalOffset();
     this.flora.setSeason(this.clock.season);
 
@@ -125,6 +128,15 @@ export class Simulation {
         sim.agents.update(sim.clock.tick);
         // Les croyants génèrent de la Foi : la boucle est bouclée (GDD §2).
         sim.faith.add(sim.agents.faithIncome());
+      },
+    });
+    // Religions : les récits s'estompent, les prêtres prêchent, les temples
+    // rayonnent une Foi passive (les cultes récompensent le dieu présent).
+    this.scheduler.add({
+      id: "religion",
+      interval: RELIGION_INTERVAL,
+      update: (sim) => {
+        sim.faith.add(sim.religion.update());
       },
     });
     // Croissance des villages : suit la population (naissances) et bâtit de
