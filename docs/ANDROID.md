@@ -16,7 +16,18 @@ copiés depuis `dist/` par `cap sync` (non versionnés, régénérés à chaque 
 
 > ⚠️ L'APK ne peut pas être compilé dans l'environnement de développement
 > distant (politique réseau : `dl.google.com` — SDK/plugins Android — bloqué).
-> Tout est prêt pour compiler **en local** avec les commandes ci-dessous.
+> Deux options : **GitHub Actions** (zéro installation, recommandé) ou en local.
+
+## Option zéro installation : GitHub Actions (recommandé)
+
+Le dépôt embarque `.github/workflows/android.yml` : GitHub compile l'APK dans
+son cloud (SDK Android préinstallé, tests inclus).
+
+1. Sur GitHub → onglet **Actions** → workflow **« Android APK »** → **Run workflow**
+   (il se lance aussi automatiquement à chaque push sur `main`).
+2. À la fin du run (~5 min), ouvre le run → section **Artifacts** →
+   télécharge **`ImG-debug-apk`** → dézippe → `app-debug.apk`.
+3. Copie l'APK sur le téléphone et installe-le (autoriser les sources inconnues).
 
 ## Produire l'APK (debug, installable immédiatement)
 
