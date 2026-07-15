@@ -246,6 +246,98 @@ export class AgentSystem {
   }
 
   /**
+   * Force militaire d'un secteur (guerres) : les guerriers pèsent lourd, la
+   * foule un peu ; le courage de chacun compte. Somme sur le disque.
+   */
+  strengthNear(cx: number, cy: number, radius: number): number {
+    const r2 = Math.max(1, radius) ** 2;
+    let s = 0;
+    for (let i = 0; i < this.px.length; i++) {
+      const dx = this.px[i]! - cx;
+      const dy = this.py[i]! - cy;
+      if (dx * dx + dy * dy > r2) continue;
+      const w = this.profession[i] === "warrior" ? 1.6 : 0.25;
+      s += w * (0.5 + this.courage[i]!);
+    }
+    return s;
+  }
+
+  /** Nombre d'habitants dans un rayon (recensement d'un village). */
+  countNear(cx: number, cy: number, radius: number): number {
+    const r2 = Math.max(1, radius) ** 2;
+    let c = 0;
+    for (let i = 0; i < this.px.length; i++) {
+      const dx = this.px[i]! - cx;
+      const dy = this.py[i]! - cy;
+      if (dx * dx + dy * dy <= r2) c++;
+    }
+    return c;
+  }
+
+  /** Deuil : la perte des siens endeuille et effraie les survivants du secteur. */
+  mourn(cx: number, cy: number, radius: number, amount: number): void {
+    const r2 = Math.max(1, radius) ** 2;
+    for (let i = 0; i < this.px.length; i++) {
+      const dx = this.px[i]! - cx;
+      const dy = this.py[i]! - cy;
+      if (dx * dx + dy * dy > r2) continue;
+      this.grief[i] = Math.min(1, this.grief[i]! + amount);
+      this.fear[i] = Math.min(1, this.fear[i]! + amount * 0.5);
+      this.joy[i] = this.joy[i]! * 0.5;
+    }
+  }
+
+  /**
+   * Retire (morts au combat) les `count` habitants les plus proches d'un point,
+   * en recollant les liens de famille (indices ré-adressés). Garde toujours au
+   * moins une âme au monde. Retourne le nombre réellement retiré.
+   */
+  cullNear(cx: number, cy: number, count: number): number {
+    const n = this.px.length;
+    if (count <= 0 || n <= 1) return 0;
+    const order = [...Array(n).keys()].sort((a, b) => {
+      const da = (this.px[a]! - cx) ** 2 + (this.py[a]! - cy) ** 2;
+      const db = (this.px[b]! - cx) ** 2 + (this.py[b]! - cy) ** 2;
+      return da - db;
+    });
+    const victims = new Set(order.slice(0, Math.min(count, n - 1)));
+    this.compact((i) => !victims.has(i));
+    return victims.size;
+  }
+
+  /** Compacte tous les tableaux en ne gardant que `keep(i)` ; ré-adresse la famille. */
+  private compact(keep: (i: number) => boolean): void {
+    const n = this.px.length;
+    const remap = new Int32Array(n);
+    let w = 0;
+    for (let i = 0; i < n; i++) remap[i] = keep(i) ? w++ : -1;
+    if (w === n) return;
+    const numeric = [
+      this.px, this.py, this.hunger, this.fatigue, this.fervour, this.piety, this.courage,
+      this.curiosity, this.sociability, this.joy, this.fear, this.anger, this.grief,
+      this.spouse, this.parentA, this.parentB, this.targetX, this.targetY, this.homeX,
+      this.homeY, this.beckonX, this.beckonY, this.beckonTicks,
+    ];
+    for (const a of numeric) {
+      let k = 0;
+      for (let i = 0; i < n; i++) if (remap[i]! >= 0) a[k++] = a[i]!;
+      a.length = w;
+    }
+    let k = 0;
+    for (let i = 0; i < n; i++) if (remap[i]! >= 0) this.profession[k++] = this.profession[i]!;
+    this.profession.length = w;
+    k = 0;
+    for (let i = 0; i < n; i++) if (remap[i]! >= 0) this.goal[k++] = this.goal[i]!;
+    this.goal.length = w;
+    // Ré-adresse les liens de famille (index déplacés ; cible morte → aucun).
+    for (let i = 0; i < w; i++) {
+      this.spouse[i] = this.spouse[i]! >= 0 ? remap[this.spouse[i]!]! : -1;
+      this.parentA[i] = this.parentA[i]! >= 0 ? remap[this.parentA[i]!]! : -1;
+      this.parentB[i] = this.parentB[i]! >= 0 ? remap[this.parentB[i]!]! : -1;
+    }
+  }
+
+  /**
    * Appelle les habitants d'un rayon vers un point (école Murmures — « Appel
    * du Lointain ») : fixe leur cible de déplacement sur la destination. Ils
    * s'y rendent, puis reprennent leur vie. Retourne le nombre d'appelés.

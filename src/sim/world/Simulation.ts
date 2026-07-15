@@ -31,6 +31,7 @@ import { RELIGION_INTERVAL, ReligionSystem } from "../religion/ReligionSystem";
 import { DivineMemory } from "../society/DivineMemory";
 import { ERA_INTERVAL, EraSystem } from "../society/EraSystem";
 import { SettlementSystem } from "../society/SettlementSystem";
+import { WAR_INTERVAL, WarSystem } from "../society/WarSystem";
 import { FaunaSystem } from "../ecology/FaunaSystem";
 import { FLORA_INTERVAL, FloraSystem } from "../ecology/FloraSystem";
 import { seasonalOffset } from "../weather/seasons";
@@ -75,6 +76,7 @@ export class Simulation {
   readonly religion: ReligionSystem;
   readonly era: EraSystem;
   readonly divineMemory: DivineMemory;
+  readonly war: WarSystem;
   /** Config effective du monde — nécessaire à la sauvegarde (seed + deltas). */
   readonly worldConfig: { seed: number; width: number; height: number; seaLevel: number };
   private readonly scheduler: Scheduler<Simulation>;
@@ -121,6 +123,7 @@ export class Simulation {
     this.religion = new ReligionSystem(this.settlements, this.agents, this.bus);
     this.era = new EraSystem(this.bus);
     this.divineMemory = new DivineMemory(this.bus, this.clock);
+    this.war = new WarSystem(this.settlements, this.agents, this.bus, this.rng);
     this.applySeasonalOffset();
     this.flora.setSeason(this.clock.season);
 
@@ -191,6 +194,13 @@ export class Simulation {
         for (const c of sim.religion.villageCults) if (c.temple) temples++;
         sim.era.advance(sim.agents.count, sim.settlements.villages.length, temples);
       },
+    });
+    // Guerres : les villages voisins montent en tension et, quand elle déborde,
+    // se livrent des raids (pertes selon la force militaire — les guerriers).
+    this.scheduler.add({
+      id: "war",
+      interval: WAR_INTERVAL,
+      update: (sim) => sim.war.update(),
     });
     // Croissance des villages : suit la population (naissances) et bâtit de
     // nouvelles huttes quand un village dépasse sa capacité.

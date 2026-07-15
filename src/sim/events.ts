@@ -34,4 +34,8 @@ export type GameEvents = {
   "religion:templeRaised": { village: number; doctrine: string };
   /** La civilisation change d'ère technologique (âge de pierre → fer). */
   "era:advanced": { era: number; name: string; politics: string };
+  /** Deux villages entrent en guerre (la tension a débordé). */
+  "war:declared": { attacker: number; defender: number };
+  /** Un raid a eu lieu : pertes de part et d'autre, un vainqueur. */
+  "war:raid": { attacker: number; defender: number; victor: number; casualties: number };
 };
