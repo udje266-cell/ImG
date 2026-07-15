@@ -1,0 +1,14 @@
+# Artefacts de build .NET (régénérés par `dotnet build`/`dotnet test`)
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+
+# Détritus Unity (quand le projet Unity sera ajouté)
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Ll]ogs/
+.vs/
