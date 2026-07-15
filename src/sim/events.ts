@@ -38,4 +38,6 @@ export type GameEvents = {
   "war:declared": { attacker: number; defender: number };
   /** Un raid a eu lieu : pertes de part et d'autre, un vainqueur. */
   "war:raid": { attacker: number; defender: number; victor: number; casualties: number };
+  /** Une route commerciale s'ouvre entre deux villages voisins en paix. */
+  "trade:established": { a: number; b: number };
 };

@@ -274,6 +274,21 @@ export class AgentSystem {
     return c;
   }
 
+  /**
+   * Ravitaillement (commerce) : les biens échangés apaisent la faim et
+   * apportent un peu de contentement, sans toucher à la ferveur.
+   */
+  provision(cx: number, cy: number, radius: number, relief: number): void {
+    const r2 = Math.max(1, radius) ** 2;
+    for (let i = 0; i < this.px.length; i++) {
+      const dx = this.px[i]! - cx;
+      const dy = this.py[i]! - cy;
+      if (dx * dx + dy * dy > r2) continue;
+      this.hunger[i] = Math.max(0, this.hunger[i]! - relief);
+      this.joy[i] = Math.min(1, this.joy[i]! + relief * 0.4);
+    }
+  }
+
   /** Deuil : la perte des siens endeuille et effraie les survivants du secteur. */
   mourn(cx: number, cy: number, radius: number, amount: number): void {
     const r2 = Math.max(1, radius) ** 2;

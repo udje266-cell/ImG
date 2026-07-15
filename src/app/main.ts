@@ -77,6 +77,9 @@ function boot(): void {
   sim.bus.on("war:raid", ({ victor, casualties }) => {
     if (casualties > 0) hud.flash(`Raid : ${casualties} mort${casualties > 1 ? "s" : ""} — le village ${victor + 1} l'emporte`);
   });
+  sim.bus.on("trade:established", ({ a, b }) => {
+    hud.flash(`🤝 Route commerciale : village ${a + 1} ⇄ village ${b + 1}`);
+  });
   sim.bus.on("religion:priestOrdained", ({ village, doctrine }) => {
     hud.flash(`Un prêtre s'élève au village ${village + 1} — culte de la ${doctrine} 🙏`);
   });

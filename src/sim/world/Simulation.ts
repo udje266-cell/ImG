@@ -31,6 +31,7 @@ import { RELIGION_INTERVAL, ReligionSystem } from "../religion/ReligionSystem";
 import { DivineMemory } from "../society/DivineMemory";
 import { ERA_INTERVAL, EraSystem } from "../society/EraSystem";
 import { SettlementSystem } from "../society/SettlementSystem";
+import { TRADE_INTERVAL, TradeSystem } from "../society/TradeSystem";
 import { WAR_INTERVAL, WarSystem } from "../society/WarSystem";
 import { FaunaSystem } from "../ecology/FaunaSystem";
 import { FLORA_INTERVAL, FloraSystem } from "../ecology/FloraSystem";
@@ -77,6 +78,7 @@ export class Simulation {
   readonly era: EraSystem;
   readonly divineMemory: DivineMemory;
   readonly war: WarSystem;
+  readonly trade: TradeSystem;
   /** Config effective du monde — nécessaire à la sauvegarde (seed + deltas). */
   readonly worldConfig: { seed: number; width: number; height: number; seaLevel: number };
   private readonly scheduler: Scheduler<Simulation>;
@@ -124,6 +126,7 @@ export class Simulation {
     this.era = new EraSystem(this.bus);
     this.divineMemory = new DivineMemory(this.bus, this.clock);
     this.war = new WarSystem(this.settlements, this.agents, this.bus, this.rng);
+    this.trade = new TradeSystem(this.settlements, this.agents, this.war, this.bus);
     this.applySeasonalOffset();
     this.flora.setSeason(this.clock.season);
 
@@ -201,6 +204,15 @@ export class Simulation {
       id: "war",
       interval: WAR_INTERVAL,
       update: (sim) => sim.war.update(),
+    });
+    // Commerce : les villages voisins en paix ouvrent des routes ; la
+    // prospérité échangée ravitaille les peuples et rayonne une Foi passive.
+    this.scheduler.add({
+      id: "trade",
+      interval: TRADE_INTERVAL,
+      update: (sim) => {
+        sim.faith.add(sim.trade.update());
+      },
     });
     // Croissance des villages : suit la population (naissances) et bâtit de
     // nouvelles huttes quand un village dépasse sa capacité.
