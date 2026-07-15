@@ -259,8 +259,11 @@ export class SettlementSystem {
   }
 
   /**
-   * Tuile constructible (terre ferme, hors eau) la plus proche de (cx, cy),
-   * recherchée en anneaux croissants. Retourne le centre de tuile, ou null.
+   * Tuile **constructible** (terre ferme ET assez plate — cœur Godus) la plus
+   * proche de (cx, cy), recherchée en anneaux croissants. Les habitants ne
+   * bâtissent que sur du plat : au joueur d'aplanir le sol pour leur ouvrir de
+   * nouveaux terrains. Retourne le centre de tuile, ou null si rien de plat à
+   * portée (rien ne se bâtit alors — il faut terrasser).
    */
   private nearestBuildableTile(cx: number, cy: number): Dwelling | null {
     const bx = Math.floor(cx);
@@ -271,7 +274,7 @@ export class SettlementSystem {
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; // périmètre de l'anneau
           const x = bx + dx;
           const y = by + dy;
-          if (!this.terrain.inBounds(x, y) || this.terrain.isWater(x, y)) continue;
+          if (!this.terrain.inBounds(x, y) || !this.terrain.isBuildable(x, y)) continue;
           return { x: x + 0.5, y: y + 0.5 };
         }
       }

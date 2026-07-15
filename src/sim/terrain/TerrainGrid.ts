@@ -11,6 +11,13 @@ import { Biome, classifyBiome } from "../worldgen/biomes";
  */
 export const CHUNK_SIZE = 32;
 
+/**
+ * Pente maximale (dénivelé normalisé vers un voisin) au-delà de laquelle une
+ * tuile n'est plus constructible. C'est le seuil qui rend le terraforming
+ * essentiel (cœur Godus) : au-dessus, il faut aplanir avant de pouvoir bâtir.
+ */
+export const BUILDABLE_MAX_SLOPE = 0.008;
+
 export class TerrainGrid {
   readonly width: number;
   readonly height: number;
@@ -66,6 +73,29 @@ export class TerrainGrid {
 
   isWater(x: number, y: number): boolean {
     return this.heightAt(x, y) < this.seaLevel;
+  }
+
+  /**
+   * Pente locale d'une tuile : plus grand dénivelé (hauteur normalisée) vers ses
+   * voisins orthogonaux. 0 = plat comme une table, plus c'est haut plus ça grimpe.
+   */
+  slopeAt(x: number, y: number): number {
+    const h = this.heightAt(x, y);
+    let s = 0;
+    if (x > 0) s = Math.max(s, Math.abs(h - this.heightAt(x - 1, y)));
+    if (x < this.width - 1) s = Math.max(s, Math.abs(h - this.heightAt(x + 1, y)));
+    if (y > 0) s = Math.max(s, Math.abs(h - this.heightAt(x, y - 1)));
+    if (y < this.height - 1) s = Math.max(s, Math.abs(h - this.heightAt(x, y + 1)));
+    return s;
+  }
+
+  /**
+   * Tuile constructible (cœur Godus) : terre ferme ET assez **plate**. Les
+   * habitants ne bâtissent que sur du plat — au joueur d'aplanir la terre pour
+   * leur offrir des plateaux (le terraforming devient essentiel).
+   */
+  isBuildable(x: number, y: number): boolean {
+    return !this.isWater(x, y) && this.slopeAt(x, y) <= BUILDABLE_MAX_SLOPE;
   }
 
   chunkIdAt(x: number, y: number): number {

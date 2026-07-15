@@ -110,6 +110,8 @@ function boot(): void {
     if (freshWorld) {
       sim.genesis();
       hud.flash("Au commencement : un homme et une femme. Guide-les. 🌍");
+      // Rappel du cœur du jeu : le peuple ne bâtit que sur du plat.
+      window.setTimeout(() => hud.flash("Aplanis la terre : ton peuple ne bâtit que sur du plat. ⛰️→▦"), 3200);
     }
     void renderer.enableInhabitants(sim, [
       "models/characters/prehistoric-man.glb",

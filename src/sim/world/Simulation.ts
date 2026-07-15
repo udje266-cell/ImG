@@ -235,8 +235,12 @@ export class Simulation {
         if (sim.settlements.villages.length === 0) {
           if (sim.agents.count >= FIRST_VILLAGE_POPULATION) {
             sim.foundSettlements();
-            sim.bus.emit("settlements:founded", {});
-            sim.bus.emit("settlements:updated", {});
+            // Un village n'a pu se fonder que s'il y avait de la terre plate :
+            // sinon le peuple attend que la divinité lui aplanisse un plateau.
+            if (sim.settlements.villages.length > 0) {
+              sim.bus.emit("settlements:founded", {});
+              sim.bus.emit("settlements:updated", {});
+            }
           }
           return;
         }
@@ -267,7 +271,10 @@ export class Simulation {
           const y = cy + dy;
           if (!this.terrain.inBounds(x, y) || this.terrain.isWater(x, y)) continue;
           if (!this.terrain.inBounds(x + 1, y) || this.terrain.isWater(x + 1, y)) continue;
-          const score = this.flora.densityAt(x, y) - r * 0.02; // vert et central
+          // Terre Promise : verte, centrale, et de préférence PLATE (les Premiers
+          // s'installent là où leur descendance pourra bâtir sans tout aplanir).
+          const flat = this.terrain.isBuildable(x, y) && this.terrain.isBuildable(x + 1, y);
+          const score = this.flora.densityAt(x, y) + (flat ? 0.5 : 0) - r * 0.02;
           if (score > bestScore) {
             bestScore = score;
             best = { x, y };
