@@ -40,4 +40,6 @@ export type GameEvents = {
   "war:raid": { attacker: number; defender: number; victor: number; casualties: number };
   /** Une route commerciale s'ouvre entre deux villages voisins en paix. */
   "trade:established": { a: number; b: number };
+  /** Le navire est réparé : le peuple peut cingler vers une nouvelle île. */
+  "voyage:shipReady": { island: number };
 };

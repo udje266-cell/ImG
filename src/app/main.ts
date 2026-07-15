@@ -1,7 +1,7 @@
 import { SceneRenderer } from "../render/SceneRenderer";
 import { POWER_CATALOG } from "../sim/powers/catalog";
 import { loadSimulation, serializeSimulation, type AnySaveData } from "../sim/save/save";
-import { Simulation } from "../sim/world/Simulation";
+import { sailToNextIsland, Simulation } from "../sim/world/Simulation";
 import { Grimoire } from "../ui/Grimoire";
 import { Hud } from "../ui/Hud";
 import { InputController, type GamePersistence } from "../ui/InputController";
@@ -80,6 +80,18 @@ function boot(): void {
   sim.bus.on("trade:established", ({ a, b }) => {
     hud.flash(`🤝 Route commerciale : village ${a + 1} ⇄ village ${b + 1}`);
   });
+  // Voyage : le navire est prêt → propose d'embarquer vers une nouvelle île.
+  // Embarquer revient à repartir d'un monde neuf en gardant sa progression.
+  sim.bus.on("voyage:shipReady", () => {
+    hud.flash("⛵ Le navire est prêt ! Cingle vers une nouvelle île.");
+    showEmbarkButton(() => {
+      const next = sailToNextIsland(sim, () => performance.now());
+      window.localStorage.setItem(SAVE_KEY, JSON.stringify(serializeSimulation(next)));
+      const url = new URL(window.location.href);
+      url.searchParams.set("load", "1");
+      window.location.href = url.toString();
+    });
+  });
   sim.bus.on("religion:priestOrdained", ({ village, doctrine }) => {
     hud.flash(`Un prêtre s'élève au village ${village + 1} — culte de la ${doctrine} 🙏`);
   });
@@ -127,6 +139,39 @@ function boot(): void {
   window.addEventListener("resize", () => renderer.resize());
   renderer.resize();
   loop.start();
+}
+
+/**
+ * Affiche un bouton « Prendre la mer » bien visible quand le navire est prêt.
+ * Idempotent : ne crée le bouton qu'une fois.
+ */
+function showEmbarkButton(onEmbark: () => void): void {
+  if (document.getElementById("btn-embark")) return;
+  const btn = document.createElement("button");
+  btn.id = "btn-embark";
+  btn.textContent = "⛵ Prendre la mer";
+  Object.assign(btn.style, {
+    position: "fixed",
+    top: "84px",
+    left: "50%",
+    transform: "translateX(-50%)",
+    zIndex: "50",
+    padding: "12px 22px",
+    fontSize: "16px",
+    fontWeight: "700",
+    color: "#0f1319",
+    background: "linear-gradient(180deg,#7fc3e8,#4f83ad)",
+    border: "1px solid #a9d8f0",
+    borderRadius: "999px",
+    boxShadow: "0 4px 18px rgba(0,0,0,.45)",
+    cursor: "pointer",
+  } satisfies Partial<CSSStyleDeclaration>);
+  btn.addEventListener("click", () => {
+    btn.disabled = true;
+    btn.textContent = "⛵ Appareillage…";
+    onEmbark();
+  });
+  document.body.appendChild(btn);
 }
 
 /** `?load=1` + sauvegarde locale valide → reprise ; sinon monde neuf. */

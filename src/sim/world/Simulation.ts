@@ -32,6 +32,7 @@ import { DivineMemory } from "../society/DivineMemory";
 import { ERA_INTERVAL, EraSystem } from "../society/EraSystem";
 import { SettlementSystem } from "../society/SettlementSystem";
 import { TRADE_INTERVAL, TradeSystem } from "../society/TradeSystem";
+import { VOYAGE_INTERVAL, VoyageSystem } from "../society/VoyageSystem";
 import { WAR_INTERVAL, WarSystem } from "../society/WarSystem";
 import { FaunaSystem } from "../ecology/FaunaSystem";
 import { FLORA_INTERVAL, FloraSystem } from "../ecology/FloraSystem";
@@ -79,6 +80,7 @@ export class Simulation {
   readonly divineMemory: DivineMemory;
   readonly war: WarSystem;
   readonly trade: TradeSystem;
+  readonly voyage: VoyageSystem;
   /** Config effective du monde — nécessaire à la sauvegarde (seed + deltas). */
   readonly worldConfig: { seed: number; width: number; height: number; seaLevel: number };
   private readonly scheduler: Scheduler<Simulation>;
@@ -127,6 +129,7 @@ export class Simulation {
     this.divineMemory = new DivineMemory(this.bus, this.clock);
     this.war = new WarSystem(this.settlements, this.agents, this.bus, this.rng);
     this.trade = new TradeSystem(this.settlements, this.agents, this.war, this.bus);
+    this.voyage = new VoyageSystem(this.bus);
     this.applySeasonalOffset();
     this.flora.setSeason(this.clock.season);
 
@@ -213,6 +216,13 @@ export class Simulation {
       update: (sim) => {
         sim.faith.add(sim.trade.update());
       },
+    });
+    // Voyage : quand la civilisation est assez développée, son meilleur village
+    // bâtit un navire de haute mer pour cingler vers une nouvelle île.
+    this.scheduler.add({
+      id: "voyage",
+      interval: VOYAGE_INTERVAL,
+      update: (sim) => sim.voyage.update(sim.agents.count, sim.era.era, sim.trade.totalProsperity),
     });
     // Croissance des villages : suit la population (naissances) et bâtit de
     // nouvelles huttes quand un village dépasse sa capacité.
@@ -326,4 +336,38 @@ export class Simulation {
     // Deliver deferred events (including UI intents for the next tick).
     this.bus.drain();
   }
+}
+
+/**
+ * Cingle vers une nouvelle île : génère un monde neuf (seed dérivé de façon
+ * déterministe) et y débarque les colons (Genèse), en conservant le savoir de
+ * la civilisation (ère) et la puissance divine accumulée (dévotion → pouvoirs,
+ * Foi, Étincelle). L'index d'île est incrémenté. Retourne la nouvelle
+ * Simulation — l'ancienne est abandonnée à la mer.
+ */
+export function sailToNextIsland(sim: Simulation, now?: () => number): Simulation {
+  const island = sim.voyage.island + 1;
+  // Seed dérivé (mélange déterministe) : chaque île est un monde différent.
+  const nextSeed = ((sim.worldConfig.seed ^ (island * 0x9e3779b1)) >>> 0) || 1;
+  const next = new Simulation({
+    seed: nextSeed,
+    width: sim.worldConfig.width,
+    height: sim.worldConfig.height,
+    seaLevel: sim.worldConfig.seaLevel,
+    ...(now ? { now } : {}),
+  });
+
+  // La civilisation emporte son savoir et la faveur des cieux.
+  next.progression.restoreDevotion(sim.progression.devotion);
+  next.era.restore(sim.era.serialize());
+  next.agents.setEra(next.era.era);
+  next.faith.current = Math.min(next.faith.max, sim.faith.current);
+  next.spark.current = Math.min(next.spark.max, sim.spark.current);
+  next.voyage.arrive(island);
+
+  // Les Deux Premiers débarquent, puis une petite expédition les rejoint.
+  next.genesis();
+  next.agents.populate(10);
+  next.foundSettlements();
+  return next;
 }

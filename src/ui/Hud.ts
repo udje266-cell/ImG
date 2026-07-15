@@ -64,9 +64,14 @@ export class Hud {
     this.devotionVal.textContent = String(Math.floor(sim.progression.devotion));
     this.populationVal.textContent = String(sim.agents.count);
     const era = sim.era.info;
+    const voyage = sim.voyage;
+    const island = voyage.island > 0 ? ` · Île ${voyage.island + 1}` : "";
+    let ship = "";
+    if (voyage.shipReady) ship = "  ·  ⛵ Navire prêt";
+    else if (voyage.shipProgress > 0) ship = `  ·  ⛵ ${Math.floor(voyage.shipProgress * 100)}%`;
     this.clock.textContent =
       `An ${clock.year + 1} · ${SEASON_LABELS[clock.season]} j${clock.dayOfSeason + 1} · ${hours}:${minutes}  ${speed}` +
-      `  ·  ${era.icon} ${era.name} · ${era.politics}`;
+      `  ·  ${era.icon} ${era.name} · ${era.politics}${island}${ship}`;
 
     if (performance.now() >= this.flashUntil) {
       this.flashEl.classList.remove("show");

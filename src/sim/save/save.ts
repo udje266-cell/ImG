@@ -22,7 +22,7 @@ import { generateWorld } from "../worldgen/WorldGenerator";
  * v9 → v10 : ères technologiques (Savoir cumulé + ère courante).
  * Une sauvegarde plus ancienne se charge sans la partie manquante.
  */
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
 
 interface CellDeltas {
   /** Indices (y * width + x) des cellules modifiées vs la baseline. */
@@ -91,6 +91,7 @@ type SettlementsState = ReturnType<Simulation["settlements"]["serialize"]>;
 type ReligionState = ReturnType<Simulation["religion"]["serialize"]>;
 type EraState = ReturnType<Simulation["era"]["serialize"]>;
 type DivineMemoryState = ReturnType<Simulation["divineMemory"]["serialize"]>;
+type VoyageStateType = ReturnType<Simulation["voyage"]["serialize"]>;
 
 /** Forme FIGÉE des villages en v6 (avant vie de village) — ne pas dériver. */
 interface SettlementsStateV6 {
@@ -141,6 +142,11 @@ export interface SaveDataV11 extends Omit<SaveDataV10, "version"> {
   divineMemory: DivineMemoryState;
 }
 
+export interface SaveDataV12 extends Omit<SaveDataV11, "version"> {
+  version: 12;
+  voyage: VoyageStateType;
+}
+
 export type AnySaveData =
   | SaveDataV1
   | SaveDataV2
@@ -152,7 +158,8 @@ export type AnySaveData =
   | SaveDataV8
   | SaveDataV9
   | SaveDataV10
-  | SaveDataV11;
+  | SaveDataV11
+  | SaveDataV12;
 
 function diff(current: Float32Array, baseline: Float32Array): CellDeltas {
   const indices: number[] = [];
@@ -167,7 +174,7 @@ function diff(current: Float32Array, baseline: Float32Array): CellDeltas {
 }
 
 /** Capture l'état complet de la simulation en données JSON-sérialisables. */
-export function serializeSimulation(sim: Simulation): SaveDataV11 {
+export function serializeSimulation(sim: Simulation): SaveDataV12 {
   const { seed, width, height, seaLevel } = sim.worldConfig;
   const baseline = generateWorld(sim.worldConfig);
   return {
@@ -181,6 +188,7 @@ export function serializeSimulation(sim: Simulation): SaveDataV11 {
     spark: sim.spark.current,
     era: sim.era.serialize(),
     divineMemory: sim.divineMemory.serialize(),
+    voyage: sim.voyage.serialize(),
     devotion: sim.progression.devotion,
     agents: sim.agents.serialize(),
     fauna: sim.fauna.serialize(),
@@ -224,6 +232,7 @@ const EMPTY_SETTLEMENTS: SettlementsState = { vx: [], vy: [], vpop: [], vhuts: [
 const EMPTY_RELIGION: ReligionState = { bienfait: [], courroux: [], prodige: [], priest: [], temple: [] };
 const EMPTY_ERA: EraState = { knowledge: 0, era: 0 };
 const EMPTY_MEMORY: DivineMemoryState = { deeds: [], reverence: 0, dread: 0 };
+const EMPTY_VOYAGE: VoyageStateType = { island: 0, shipProgress: 0, shipReady: false };
 
 /** Migre une sauvegarde v1 (sans météo/flore/habitants/faune/villages) vers la structure courante. */
 function migrateV1(data: SaveDataV1): SaveDataV10 {
@@ -300,13 +309,19 @@ function migrateV10(data: SaveDataV10): SaveDataV11 {
   return { ...data, version: 11, divineMemory: EMPTY_MEMORY };
 }
 
+/** v11 → v12 : pas encore de voyage — première île, navire à bâtir. */
+function migrateV11(data: SaveDataV11): SaveDataV12 {
+  return { ...data, version: 12, voyage: EMPTY_VOYAGE };
+}
+
 /**
  * Reconstruit une simulation à l'état exact de la sauvegarde. `options.now`
  * est passé tel quel au constructeur (injection de l'horloge de mesure).
  */
 export function loadSimulation(raw: AnySaveData, options: { now?: () => number } = {}): Simulation {
-  let data: SaveDataV11;
-  if (raw.version === 11) data = raw;
+  let data: SaveDataV12;
+  if (raw.version === 12) data = raw;
+  else if (raw.version === 11) data = migrateV11(raw);
   else {
     let v10: SaveDataV10;
     if (raw.version === 1) v10 = migrateV1(raw);
@@ -320,7 +335,7 @@ export function loadSimulation(raw: AnySaveData, options: { now?: () => number }
     else if (raw.version === 9) v10 = migrateV9(raw);
     else if (raw.version === 10) v10 = raw;
     else throw new Error(`Save version ${(raw as { version: number }).version} not supported`);
-    data = migrateV10(v10);
+    data = migrateV11(migrateV10(v10));
   }
 
   const sim = new Simulation({
@@ -348,6 +363,7 @@ export function loadSimulation(raw: AnySaveData, options: { now?: () => number }
   if (data.religion.bienfait.length > 0) sim.religion.restore(data.religion);
   sim.era.restore(data.era);
   if (data.divineMemory) sim.divineMemory.restore(data.divineMemory);
+  if (data.voyage) sim.voyage.restore(data.voyage);
 
   // Ré-applique la saison du tick chargé, puis re-classifie.
   sim.reapplySeasonalOffset();
