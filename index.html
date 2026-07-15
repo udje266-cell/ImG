@@ -70,6 +70,51 @@
       .action.small > button { width: 46px; height: 46px; font-size: 20px; }
       #actionbar .sep { width: 1px; align-self: stretch; margin: 8px 2px; background: rgba(255,255,255,0.14); }
 
+      /* --- Grimoire des pouvoirs (onglet dédié) --- */
+      #grimoire-backdrop {
+        position: fixed; inset: 0; background: rgba(6, 9, 16, 0.5); backdrop-filter: blur(2px);
+        opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 20;
+      }
+      #grimoire-backdrop.open { opacity: 1; pointer-events: auto; }
+      #grimoire {
+        position: fixed; left: 50%; transform: translate(-50%, 110%);
+        bottom: calc(12px + env(safe-area-inset-bottom));
+        width: min(760px, calc(100vw - 20px)); max-height: 76vh; overflow-y: auto;
+        background: var(--panel); border: 1px solid var(--panel-border); border-radius: 18px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.5); padding: 14px 16px 18px;
+        transition: transform 0.26s cubic-bezier(0.2, 0.9, 0.3, 1); z-index: 21; color: var(--text);
+      }
+      #grimoire.open { transform: translate(-50%, 0); }
+      #grimoire h2 {
+        margin: 2px 0 10px; font-size: 17px; display: flex; align-items: center; gap: 8px;
+      }
+      #grimoire h2 .close { margin-left: auto; width: 32px; height: 32px; border-radius: 50%;
+        border: 1px solid var(--panel-border); background: rgba(255,255,255,0.08); color: var(--text);
+        font-size: 17px; cursor: pointer; }
+      .school { margin: 12px 0 4px; }
+      .school > h3 {
+        margin: 0 0 8px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase;
+        color: rgba(242,245,251,0.62); display: flex; align-items: center; gap: 7px;
+      }
+      .spellgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+      .spell {
+        display: flex; flex-direction: column; gap: 3px; padding: 9px 10px; text-align: left;
+        border-radius: 12px; border: 1px solid var(--panel-border); background: rgba(255,255,255,0.05);
+        color: var(--text); cursor: pointer; transition: border-color 0.15s, background 0.15s, transform 0.1s;
+      }
+      .spell:active { transform: scale(0.97); }
+      .spell .top { display: flex; align-items: center; gap: 7px; font-weight: 700; font-size: 13px; }
+      .spell .top .ico { font-size: 17px; }
+      .spell .desc { font-size: 10.5px; line-height: 1.35; color: rgba(242,245,251,0.72); }
+      .spell .state { font-size: 10px; font-weight: 600; margin-top: 1px; }
+      .spell.available { border-color: rgba(255, 214, 110, 0.5); }
+      .spell.available.active { background: rgba(94, 74, 22, 0.92); border-color: var(--accent); }
+      .spell.available .state { color: #8fe6a6; }
+      .spell.locked { opacity: 0.72; cursor: not-allowed; }
+      .spell.locked .state { color: #ffb27a; }
+      .spell.soon { opacity: 0.5; cursor: default; }
+      .spell.soon .state { color: rgba(242,245,251,0.55); }
+
       #perf {
         position: fixed; top: 60px; right: 12px; display: none; padding: 8px 12px; border-radius: 10px;
         background: var(--panel); border: 1px solid var(--panel-border);
@@ -87,6 +132,7 @@
 
     <div id="resources">
       <div class="pill" title="Foi"><span class="ico">💎</span><span id="faith-val">—</span><span class="bar"><i id="faith-bar"></i></span></div>
+      <div class="pill" title="Étincelle divine"><span class="ico">⚡</span><span id="spark-val">—</span><span class="bar"><i id="spark-bar" style="background:#7fd4ff"></i></span></div>
       <div class="pill" title="Dévotion"><span class="ico">✨</span><span id="devotion-val">—</span></div>
       <div class="pill" title="Population"><span class="ico">👥</span><span id="population-val">—</span></div>
       <div id="clock">—</div>
@@ -98,11 +144,16 @@
     <div id="actionbar">
       <div class="action"><button id="tool-raise" title="Élever">⛰️</button><span class="label">Élever</span></div>
       <div class="action"><button id="tool-lower" title="Abaisser">🕳️</button><span class="label">Abaisser</span></div>
-      <div class="action"><button id="tool-flatten" title="Aplanir" disabled>🔒</button><span class="label">Aplanir</span></div>
-      <div class="action"><button id="tool-rain" title="Pluie" disabled>🔒</button><span class="label">Pluie</span></div>
+      <div class="action"><button id="btn-grimoire" title="Pouvoirs divins">📖</button><span class="label" id="grimoire-label">Pouvoirs</span></div>
       <div class="sep"></div>
       <div class="action small"><button id="btn-save" title="Sauvegarder (S)">💾</button><span class="label">Sauver</span></div>
       <div class="action small"><button id="btn-load" title="Charger (L)" disabled>📂</button><span class="label">Charger</span></div>
+    </div>
+
+    <div id="grimoire-backdrop"></div>
+    <div id="grimoire" role="dialog" aria-label="Grimoire des pouvoirs divins" aria-hidden="true">
+      <h2>📖 Grimoire des pouvoirs <button class="close" id="grimoire-close" aria-label="Fermer">✕</button></h2>
+      <div id="grimoire-body"></div>
     </div>
 
     <div id="perf"></div>

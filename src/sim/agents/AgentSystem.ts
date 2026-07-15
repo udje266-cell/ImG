@@ -17,8 +17,16 @@ import type { TerrainGrid } from "../terrain/TerrainGrid";
  * l'IA n'est ré-évaluée que tous les DECISION_INTERVAL ticks par agent (LOD).
  */
 export const AGENT_DECISION_INTERVAL = 20;
+/** Durée (ticks) pendant laquelle « Appel du Lointain » guide un habitant. */
+const BECKON_DURATION = 300;
 /** Vitesse de déplacement, en tuiles/tick. */
 const SPEED = 0.06;
+/** Naissances : cadence de vérification par habitant, seuils et plafond. */
+const BIRTH_CHECK_INTERVAL = 400;
+const BIRTH_HUNGER_MAX = 0.35; // il faut être bien nourri…
+const BIRTH_FATIGUE_MAX = 0.6; // …et pas épuisé
+const BIRTH_CHANCE = 0.3;
+export const MAX_POPULATION = 300;
 /** Rayon de recherche (tuiles) pour nourriture/foyer. */
 const SEARCH_RADIUS = 24;
 /** Foi générée par croyant et par tick, avant modulateurs. */
@@ -48,6 +56,10 @@ export class AgentSystem {
   private readonly targetY: number[] = [];
   private readonly homeX: number[] = [];
   private readonly homeY: number[] = [];
+  // Influence « Appel du Lointain » : cible + décompte (transitoire, non sauvé).
+  private readonly beckonX: number[] = [];
+  private readonly beckonY: number[] = [];
+  private readonly beckonTicks: number[] = [];
   private readonly rng: Rng;
 
   constructor(
@@ -63,11 +75,82 @@ export class AgentSystem {
     return this.px.length;
   }
 
+  /**
+   * Réassigne le foyer d'un habitant (utilisé par `SettlementSystem` quand des
+   * villages se fondent : l'objectif "rest" y ramène alors les habitants, qui
+   * se regroupent peu à peu autour de leur village).
+   */
+  setHome(i: number, x: number, y: number): void {
+    this.homeX[i] = x;
+    this.homeY[i] = y;
+  }
+
   /** Foi produite ce tick par l'ensemble des croyants. */
   faithIncome(): number {
     let sum = 0;
     for (let i = 0; i < this.fervour.length; i++) sum += this.fervour[i]! * FAITH_PER_BELIEVER;
     return sum;
+  }
+
+  /**
+   * Bénédiction sur une zone (école Grâces — « Corne d'Abondance », « Onction »)
+   * : soulage la faim/fatigue et ravive la ferveur des habitants du disque.
+   * Retourne le nombre d'habitants touchés.
+   */
+  bless(cx: number, cy: number, radius: number, hungerRelief: number, fervourGain: number): number {
+    const r2 = Math.max(1, radius) ** 2;
+    let touched = 0;
+    for (let i = 0; i < this.px.length; i++) {
+      const dx = this.px[i]! - cx;
+      const dy = this.py[i]! - cy;
+      if (dx * dx + dy * dy > r2) continue;
+      this.hunger[i] = Math.max(0, this.hunger[i]! - hungerRelief);
+      this.fatigue[i] = Math.max(0, this.fatigue[i]! - hungerRelief * 0.5);
+      this.fervour[i] = Math.min(3, this.fervour[i]! + fervourGain);
+      touched++;
+    }
+    return touched;
+  }
+
+  /**
+   * Terreur divine (école Fléaux — « Ténèbres ») : la ferveur des habitants
+   * du disque s'effondre — l'effroi éteint la louange, même si le récit du
+   * fléau nourrira le culte de la Crainte. Retourne le nombre de frappés.
+   */
+  terrify(cx: number, cy: number, radius: number, fervourLoss: number): number {
+    const r2 = Math.max(1, radius) ** 2;
+    let struck = 0;
+    for (let i = 0; i < this.px.length; i++) {
+      const dx = this.px[i]! - cx;
+      const dy = this.py[i]! - cy;
+      if (dx * dx + dy * dy > r2) continue;
+      this.fervour[i] = Math.max(0, this.fervour[i]! - fervourLoss);
+      struck++;
+    }
+    return struck;
+  }
+
+  /**
+   * Appelle les habitants d'un rayon vers un point (école Murmures — « Appel
+   * du Lointain ») : fixe leur cible de déplacement sur la destination. Ils
+   * s'y rendent, puis reprennent leur vie. Retourne le nombre d'appelés.
+   */
+  beckon(cx: number, cy: number, radius: number): number {
+    const r2 = Math.max(1, radius) ** 2;
+    let called = 0;
+    for (let i = 0; i < this.px.length; i++) {
+      const dx = this.px[i]! - cx;
+      const dy = this.py[i]! - cy;
+      if (dx * dx + dy * dy > r2) continue;
+      this.beckonX[i] = cx;
+      this.beckonY[i] = cy;
+      this.beckonTicks[i] = BECKON_DURATION;
+      this.goal[i] = "wander";
+      this.targetX[i] = cx;
+      this.targetY[i] = cy;
+      called++;
+    }
+    return called;
   }
 
   /** Fait naître un habitant à (x, y) — son foyer initial. */
@@ -83,6 +166,9 @@ export class AgentSystem {
     this.targetY.push(y);
     this.homeX.push(x);
     this.homeY.push(y);
+    this.beckonX.push(x);
+    this.beckonY.push(y);
+    this.beckonTicks.push(0);
   }
 
   /** Peuple le monde de `n` habitants sur des tuiles de terre viables. */
@@ -99,10 +185,36 @@ export class AgentSystem {
   }
 
   update(tick: number): void {
-    for (let i = 0; i < this.px.length; i++) {
+    // Borne figée : les enfants nés ce tick ne sont mis à jour qu'au suivant.
+    const n = this.px.length;
+    for (let i = 0; i < n; i++) {
       // Besoins qui montent avec le temps.
       this.hunger[i] = Math.min(1, this.hunger[i]! + 0.0008);
       this.fatigue[i] = Math.min(1, this.fatigue[i]! + 0.0006);
+
+      // Naissance : un habitant prospère (nourri, reposé) fonde une famille.
+      // L'enfant naît au foyer (le village) — la population croît avec la
+      // prospérité, que les Grâces divines peuvent entretenir (GDD §2).
+      if (
+        (tick + i * 37) % BIRTH_CHECK_INTERVAL === 0 &&
+        this.px.length < MAX_POPULATION &&
+        this.hunger[i]! < BIRTH_HUNGER_MAX &&
+        this.fatigue[i]! < BIRTH_FATIGUE_MAX &&
+        this.rng.float() < BIRTH_CHANCE
+      ) {
+        this.spawn(this.homeX[i]!, this.homeY[i]!);
+      }
+
+      // Sous l'effet de l'Appel du Lointain : la cible reste le point d'appel,
+      // l'IA normale est suspendue jusqu'à l'expiration du décompte.
+      if (this.beckonTicks[i]! > 0) {
+        this.beckonTicks[i]!--;
+        this.goal[i] = "wander";
+        this.targetX[i] = this.beckonX[i]!;
+        this.targetY[i] = this.beckonY[i]!;
+        this.act(i);
+        continue;
+      }
 
       // Décision (LOD : décalée par agent pour lisser le coût).
       if ((tick + i) % AGENT_DECISION_INTERVAL === 0) {
@@ -249,6 +361,9 @@ export class AgentSystem {
       this.targetY.push(data.py[i]!);
       this.homeX.push(data.homeX[i]!);
       this.homeY.push(data.homeY[i]!);
+      this.beckonX.push(data.px[i]!);
+      this.beckonY.push(data.py[i]!);
+      this.beckonTicks.push(0);
     }
     this.rng.setState(data.rngState);
     void this.bus; // réservé (événements de naissance/mort à venir)

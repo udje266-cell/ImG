@@ -97,6 +97,61 @@ export class FloraSystem {
     this.density[this.terrain.index(x, y)] = Math.min(1, Math.max(0, value));
   }
 
+  /**
+   * Miracle de fertilité (pouvoir « Verdoiement ») : pousse la végétation vers
+   * sa capacité dans un disque, avec atténuation vers les bords. Ne dépasse
+   * jamais la capacité écologique de la tuile (le miracle accélère la nature,
+   * il ne la falsifie pas) — sol nu/aride ou sous l'eau : sans effet.
+   * Retourne le nombre de tuiles réellement verdies.
+   */
+  fertilize(cx: number, cy: number, radius: number, strength = 0.75): number {
+    const terrain = this.terrain;
+    const r = Math.max(1, radius);
+    let touched = 0;
+    for (let y = Math.max(0, Math.ceil(cy - r)); y <= Math.min(terrain.height - 1, Math.floor(cy + r)); y++) {
+      for (let x = Math.max(0, Math.ceil(cx - r)); x <= Math.min(terrain.width - 1, Math.floor(cx + r)); x++) {
+        const dx = x - cx;
+        const dy = y - cy;
+        const dist = Math.hypot(dx, dy);
+        if (dist > r) continue;
+        const i = terrain.index(x, y);
+        const cap = this.capacityAt(i);
+        if (cap <= 0) continue; // sol non viable : la nature ne ment pas
+        const falloff = 1 - dist / r; // plein effet au centre, nul au bord
+        const boosted = this.density[i]! + (cap - this.density[i]!) * strength * falloff;
+        // Amorce au moins la germination sur une tuile nue mais viable.
+        const next = Math.max(boosted, Math.min(cap, BARE_THRESHOLD * falloff));
+        if (next > this.density[i]!) {
+          this.density[i] = next;
+          touched++;
+        }
+      }
+    }
+    return touched;
+  }
+
+  /**
+   * Calcine la végétation dans un disque (foudre, éruption, sécheresse
+   * extrême) : densité ramenée à zéro. Retourne le nombre de tuiles brûlées.
+   */
+  scorch(cx: number, cy: number, radius: number): number {
+    const terrain = this.terrain;
+    const r = Math.max(1, radius);
+    const r2 = r * r;
+    let burned = 0;
+    for (let y = Math.max(0, Math.ceil(cy - r)); y <= Math.min(terrain.height - 1, Math.floor(cy + r)); y++) {
+      for (let x = Math.max(0, Math.ceil(cx - r)); x <= Math.min(terrain.width - 1, Math.floor(cx + r)); x++) {
+        if ((x - cx) ** 2 + (y - cy) ** 2 > r2) continue;
+        const i = terrain.index(x, y);
+        if (this.density[i]! > 0) {
+          this.density[i] = 0;
+          burned++;
+        }
+      }
+    }
+    return burned;
+  }
+
   /** Un pas d'écologie (tous les FLORA_INTERVAL ticks). */
   update(): void {
     const terrain = this.terrain;

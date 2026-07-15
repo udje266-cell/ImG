@@ -1,6 +1,8 @@
 import { SceneRenderer } from "../render/SceneRenderer";
+import { POWER_CATALOG } from "../sim/powers/catalog";
 import { loadSimulation, serializeSimulation, type AnySaveData } from "../sim/save/save";
 import { Simulation } from "../sim/world/Simulation";
+import { Grimoire } from "../ui/Grimoire";
 import { Hud } from "../ui/Hud";
 import { InputController, type GamePersistence } from "../ui/InputController";
 import { PerfOverlay } from "../ui/PerfOverlay";
@@ -53,20 +55,43 @@ function boot(): void {
   const input = new InputController(canvas, renderer, sim, loop, persistence);
   input.attach();
 
+  // Grimoire : onglet dédié qui pilote la sélection du pouvoir actif.
+  const grimoire = new Grimoire(sim, (meta) => input.setActivePower(meta));
+
   sim.bus.on("progression:powerUnlocked", ({ power }) => {
-    if (power === "flatten") hud.flash("Pouvoir débloqué : Aplanir ▦");
-    if (power === "rain") hud.flash("Pouvoir débloqué : Pluie 🌧️");
+    const meta = POWER_CATALOG.find((m) => m.power === power);
+    if (meta) hud.flash(`Pouvoir débloqué : ${meta.name} ${meta.icon}`);
+    grimoire.open(); // révèle le nouveau pouvoir dans le grimoire
+  });
+
+  // Religions : le style de règne du joueur façonne les cultes (phase 6).
+  sim.bus.on("settlements:founded", () => {
+    hud.flash("Ta lignée fonde son premier village 🏡");
+  });
+  sim.bus.on("religion:priestOrdained", ({ village, doctrine }) => {
+    hud.flash(`Un prêtre s'élève au village ${village + 1} — culte de la ${doctrine} 🙏`);
+  });
+  sim.bus.on("religion:templeRaised", ({ village, doctrine }) => {
+    hud.flash(`Le village ${village + 1} érige un temple à la ${doctrine} 🏛️`);
   });
 
   // Forêts + nuages 3D + habitants (hors showcase, qui a sa propre mise en scène).
   if (!params.has("showcase")) {
     void renderer.enableForest(sim, "models/props/tree.glb");
     void renderer.enableCloudModel("models/props/cloud.glb");
-    if (sim.agents.count === 0) sim.agents.populate(60); // peuplement de départ
+    const freshWorld = sim.agents.count === 0;
+    // Genèse : le monde commence avec les Deux Premiers — un homme et une
+    // femme. Guidés par la divinité, ils prospéreront ; leur descendance
+    // fondera le premier village (puis les suivants), et ainsi de suite.
+    if (freshWorld) {
+      sim.genesis();
+      hud.flash("Au commencement : un homme et une femme. Guide-les. 🌍");
+    }
     void renderer.enableInhabitants(sim, [
       "models/characters/prehistoric-man.glb",
       "models/characters/prehistoric-woman.glb",
     ]);
+    renderer.enableSettlements();
     if (sim.fauna.count === 0) sim.fauna.populate(80, 12); // herbivores, prédateurs
     void renderer.enableFauna(sim, ["models/animals/Horse.glb", "models/animals/Fox.glb"]);
   }

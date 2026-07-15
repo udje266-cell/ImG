@@ -81,9 +81,9 @@ export class WeatherLayer {
       color: 0xffffff,
       // Émissive douce : les dessous des nuages (dans l'ombre, vus de dessus)
       // restent clairs et cotonneux au lieu de virer au gris sombre.
-      emissive: new Color(0x8a919e),
+      emissive: new Color(0xa9b0bd),
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.95,
       depthWrite: false,
     });
 

@@ -24,6 +24,8 @@ const FLASH_DURATION_MS = 2600;
 export class Hud {
   private readonly faithVal: HTMLElement;
   private readonly faithBar: HTMLElement;
+  private readonly sparkVal: HTMLElement;
+  private readonly sparkBar: HTMLElement;
   private readonly devotionVal: HTMLElement;
   private readonly populationVal: HTMLElement;
   private readonly clock: HTMLElement;
@@ -33,6 +35,8 @@ export class Hud {
   constructor(root: Document = document) {
     this.faithVal = root.getElementById("faith-val")!;
     this.faithBar = root.getElementById("faith-bar")!;
+    this.sparkVal = root.getElementById("spark-val")!;
+    this.sparkBar = root.getElementById("spark-bar")!;
     this.devotionVal = root.getElementById("devotion-val")!;
     this.populationVal = root.getElementById("population-val")!;
     this.clock = root.getElementById("clock")!;
@@ -55,6 +59,8 @@ export class Hud {
 
     this.faithVal.textContent = String(Math.floor(sim.faith.current));
     this.faithBar.style.width = `${(sim.faith.current / sim.faith.max) * 100}%`;
+    this.sparkVal.textContent = String(Math.floor(sim.spark.current));
+    this.sparkBar.style.width = `${(sim.spark.current / sim.spark.max) * 100}%`;
     this.devotionVal.textContent = String(Math.floor(sim.progression.devotion));
     this.populationVal.textContent = String(sim.agents.count);
     this.clock.textContent =

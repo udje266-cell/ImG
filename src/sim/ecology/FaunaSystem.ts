@@ -95,6 +95,46 @@ export class FaunaSystem {
     place(PREDATOR, predators);
   }
 
+  /**
+   * Fait apparaître un troupeau d'une espèce sur des tuiles de terre autour
+   * d'un point (pouvoir « Appel des Bêtes », école Bestiaire). Respecte le
+   * plafond de population de l'espèce. Retourne le nombre réellement apparu.
+   */
+  spawnHerd(cx: number, cy: number, radius: number, count: number, species: Species): number {
+    let placed = 0;
+    let guard = 0;
+    const r = Math.max(1, radius);
+    while (placed < count && guard++ < count * 60) {
+      if (this.counts()[species === HERBIVORE ? "herbivores" : "predators"] >= CAP[species]) break;
+      const a = this.rng.float() * Math.PI * 2;
+      const d = this.rng.float() * r;
+      const x = Math.floor(cx + Math.cos(a) * d);
+      const y = Math.floor(cy + Math.sin(a) * d);
+      if (!this.terrain.inBounds(x, y) || this.terrain.isWater(x, y)) continue;
+      this.spawn(species, x + 0.5, y + 0.5, 0.7);
+      placed++;
+    }
+    return placed;
+  }
+
+  /**
+   * Décime la faune dans un rayon (pouvoir « Foudre »/catastrophes). Parcours
+   * arrière pour une suppression par swap sûre. Retourne le nombre tué.
+   */
+  cull(cx: number, cy: number, radius: number): number {
+    const r2 = Math.max(1, radius) ** 2;
+    let killed = 0;
+    for (let i = this.px.length - 1; i >= 0; i--) {
+      const dx = this.px[i]! - cx;
+      const dy = this.py[i]! - cy;
+      if (dx * dx + dy * dy <= r2) {
+        this.remove(i);
+        killed++;
+      }
+    }
+    return killed;
+  }
+
   update(tick: number): void {
     // Parcours arrière : permet la suppression par swap sans sauter d'éléments.
     for (let i = this.px.length - 1; i >= 0; i--) {

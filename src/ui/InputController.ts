@@ -1,4 +1,5 @@
 import type { SceneRenderer } from "../render/SceneRenderer";
+import { POWER_CATALOG, type PowerMeta } from "../sim/powers/catalog";
 import type { PowerInvocation } from "../sim/powers/Power";
 import type { Simulation } from "../sim/world/Simulation";
 
@@ -17,13 +18,7 @@ export interface GamePersistence {
   hasSave(): boolean;
 }
 
-export type SculptTool = "raise" | "lower" | "flatten" | "rain";
-
-/** Pouvoirs déblocables associés à un bouton d'outil verrouillable. */
-const UNLOCKABLE_TOOLS: ReadonlyArray<{ tool: SculptTool; button: string; icon: string; power: "flatten" | "rain" }> = [
-  { tool: "flatten", button: "tool-flatten", icon: "▦", power: "flatten" },
-  { tool: "rain", button: "tool-rain", icon: "🌧️", power: "rain" },
-];
+const RAISE_META = POWER_CATALOG.find((m) => m.key === "raise")!;
 
 /** Minimum delay between two sculpt intents while the pointer is held (ms). */
 const SCULPT_THROTTLE_MS = 90;
@@ -41,7 +36,8 @@ const SCULPT_THROTTLE_MS = 90;
  */
 export class InputController {
   brushRadius = 6;
-  tool: SculptTool = "raise";
+  /** Pouvoir actif sélectionné dans le grimoire (défaut : Soulèvement). */
+  activePower: PowerMeta = RAISE_META;
 
   private readonly pointers = new Map<number, { x: number; y: number }>();
   private panning = false;
@@ -70,16 +66,8 @@ export class InputController {
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
 
-    this.bindToolButton("tool-raise", "raise");
-    this.bindToolButton("tool-lower", "lower");
-    for (const { tool, button, power } of UNLOCKABLE_TOOLS) {
-      this.bindToolButton(button, tool);
-      this.setToolEnabled(power, this.sim.progression.isUnlocked(power));
-    }
-    this.sim.bus.on("progression:powerUnlocked", ({ power }) => {
-      if (power === "flatten" || power === "rain") this.setToolEnabled(power, true);
-    });
-
+    // La sélection des pouvoirs (boutons Élever/Abaisser + grimoire) est gérée
+    // par le composant `Grimoire`, qui appelle `setActivePower`.
     document.getElementById("btn-save")?.addEventListener("click", () => this.persistence.save());
     const loadButton = document.getElementById("btn-load") as HTMLButtonElement | null;
     if (loadButton) {
@@ -88,35 +76,9 @@ export class InputController {
     }
   }
 
-  private setToolEnabled(power: "flatten" | "rain", enabled: boolean): void {
-    const spec = UNLOCKABLE_TOOLS.find((t) => t.power === power);
-    if (!spec) return;
-    const button = document.getElementById(spec.button) as HTMLButtonElement | null;
-    if (!button) return;
-    button.disabled = !enabled;
-    button.textContent = enabled ? spec.icon : "🔒";
-    if (!enabled && this.tool === spec.tool) this.setTool("raise");
-  }
-
-  private bindToolButton(id: string, tool: SculptTool): void {
-    const button = document.getElementById(id);
-    if (!button) return;
-    button.addEventListener("click", () => this.setTool(tool));
-    if (tool === this.tool) button.classList.add("active");
-  }
-
-  private setTool(tool: SculptTool): void {
-    const lock = UNLOCKABLE_TOOLS.find((t) => t.tool === tool);
-    if (lock && !this.sim.progression.isUnlocked(lock.power)) return;
-    this.tool = tool;
-    for (const [id, t] of [
-      ["tool-raise", "raise"],
-      ["tool-lower", "lower"],
-      ["tool-flatten", "flatten"],
-      ["tool-rain", "rain"],
-    ] as const) {
-      document.getElementById(id)?.classList.toggle("active", t === tool);
-    }
+  /** Sélectionne le pouvoir actif (appelé par le grimoire). */
+  setActivePower(meta: PowerMeta): void {
+    this.activePower = meta;
   }
 
   private readonly onPointerDown = (e: PointerEvent): void => {
@@ -232,20 +194,22 @@ export class InputController {
     if (!tile) return;
     this.lastIntentAt = now;
 
+    const meta = this.activePower;
+    if (!meta.power) return; // pouvoir « à venir » : rien à invoquer
+
     let invocation: PowerInvocation;
-    if (this.tool === "flatten") {
-      invocation = { power: "flatten", x: tile.x, y: tile.y, radius: this.brushRadius };
-    } else if (this.tool === "rain") {
-      invocation = { power: "rain", x: tile.x, y: tile.y, radius: this.brushRadius };
-    } else {
-      const lowering = this.shiftHeld ? this.tool === "raise" : this.tool === "lower";
+    if (meta.power === "terraform") {
+      // Maj inverse le sens (Élever ↔ Abaisser).
+      const base = meta.direction ?? 1;
       invocation = {
         power: "terraform",
         x: tile.x,
         y: tile.y,
         radius: this.brushRadius,
-        direction: lowering ? -1 : 1,
+        direction: this.shiftHeld ? ((base * -1) as 1 | -1) : base,
       };
+    } else {
+      invocation = { power: meta.power, x: tile.x, y: tile.y, radius: this.brushRadius };
     }
     this.sim.bus.queue("intent:invokePower", invocation);
   }

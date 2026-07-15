@@ -6,32 +6,43 @@ import {
   HemisphereLight,
   Mesh,
   MeshBasicMaterial,
-  MeshLambertMaterial,
   PCFSoftShadowMap,
-  PlaneGeometry,
   Raycaster,
   RingGeometry,
   Scene,
   SRGBColorSpace,
   Vector2,
+  Vector3,
   WebGLRenderer,
 } from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import type { Simulation } from "../sim/world/Simulation";
 import { CameraRig } from "./CameraRig";
+import { PrecipitationLayer } from "./PrecipitationLayer";
+import { Sky } from "./Sky";
+import { Water } from "./Water";
 import { FaunaLayer } from "./FaunaLayer";
 import { ForestLayer } from "./ForestLayer";
 import { InhabitantsLayer } from "./InhabitantsLayer";
+import { SettlementLayer } from "./SettlementLayer";
 import { Showcase } from "./Showcase";
 import { TerrainMesh } from "./TerrainMesh";
 import { WeatherLayer } from "./WeatherLayer";
 
 const DAY_SKY = new Color("#8ec7ef");
-const NIGHT_SKY = new Color("#0b1026");
+// Nuit « cinéma » (day-for-night) : bleu lunaire profond mais lisible,
+// jamais noir — le monde reste déchiffrable, les feux restent des accents.
+const NIGHT_SKY = new Color("#1c2650");
 const DUSK_SKY = new Color("#e8a878");
 const GROUND_BOUNCE = new Color("#8a7a55"); // lumière rebondie chaude du sol
+const MOONLIGHT = new Color("#a9bfff"); // clair de lune bleuté
 
 const DAY_SUN_INTENSITY = 3.1;
-const NIGHT_HEMI = 0.12;
+const NIGHT_HEMI = 0.34;
+const MOON_INTENSITY = 0.55;
 
 /**
  * 3D scene orchestrator (docs/TDD.md §4.5): owns the WebGL renderer, the
@@ -44,10 +55,18 @@ export class SceneRenderer {
   private readonly renderer: WebGLRenderer;
   private readonly scene = new Scene();
   private readonly sun: DirectionalLight;
+  private readonly moon: DirectionalLight;
   private readonly hemi: HemisphereLight;
   private readonly fog: Fog;
   private readonly terrainMesh: TerrainMesh;
+  private readonly water: Water;
+  private readonly sky: Sky;
   private readonly weatherLayer: WeatherLayer;
+  private readonly precipitation: PrecipitationLayer;
+  private readonly composer: EffectComposer;
+  private readonly bloom: UnrealBloomPass;
+  private readonly sunDir = new Vector3();
+  private readonly moonDir = new Vector3();
   private readonly brushRing: Mesh;
   private readonly raycaster = new Raycaster();
   private readonly pointerNdc = new Vector2();
@@ -58,6 +77,7 @@ export class SceneRenderer {
   private forest: ForestLayer | null = null;
   private inhabitants: InhabitantsLayer | null = null;
   private faunaLayer: FaunaLayer | null = null;
+  private settlements: SettlementLayer | null = null;
   private lastFrameAt: number | null = null;
 
   constructor(
@@ -91,14 +111,27 @@ export class SceneRenderer {
       (mesh) => this.scene.remove(mesh),
     );
 
-    const water = new Mesh(
-      new PlaneGeometry(width, height),
-      new MeshLambertMaterial({ color: 0x3fa8d8, transparent: true, opacity: 0.72 }),
-    );
-    water.rotation.x = -Math.PI / 2;
-    water.position.set(width / 2, 0.15, height / 2);
-    water.receiveShadow = true;
-    this.scene.add(water);
+    this.water = new Water(width, height);
+    this.scene.add(this.water.mesh);
+
+    this.sky = new Sky(Math.max(width, height));
+    this.sky.mesh.position.set(width / 2, 0, height / 2);
+    this.scene.add(this.sky.mesh);
+
+    // Pluie/neige visibles sous les cellules météo qui précipitent.
+    this.precipitation = new PrecipitationLayer(sim);
+    this.scene.add(this.precipitation.points);
+
+    // Post-processing : bloom sélectif (seuil haut → seuls les feux, la lune
+    // et les éclats du soleil sur l'eau rayonnent), puis OutputPass qui
+    // applique tone mapping ACES + sRGB (le rendu intermédiaire reste linéaire).
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.rig.camera));
+    // Seuil > 1 : en HDR linéaire, seuls les émissifs vraiment brillants
+    // (flammes, lune, éclats) débordent — jamais le terrain ensoleillé.
+    this.bloom = new UnrealBloomPass(new Vector2(1, 1), 0.32, 0.5, 1.12);
+    this.composer.addPass(this.bloom);
+    this.composer.addPass(new OutputPass());
 
     // Soleil directionnel chaud, projetant des ombres douces sur le relief.
     this.sun = new DirectionalLight(0xfff0d6, DAY_SUN_INTENSITY);
@@ -120,6 +153,12 @@ export class SceneRenderer {
     this.hemi = new HemisphereLight(DAY_SKY.getHex(), GROUND_BOUNCE.getHex(), 0.9);
     this.scene.add(this.hemi);
 
+    // Clair de lune : directionnelle froide opposée au soleil, sans ombres
+    // (budget mobile) — la nuit reste lisible, jamais noire (day-for-night).
+    this.moon = new DirectionalLight(MOONLIGHT, 0);
+    this.moon.target.position.set(width / 2, 0, height / 2);
+    this.scene.add(this.moon, this.moon.target);
+
     this.brushRing = new Mesh(
       new RingGeometry(0.85, 1, 48),
       new MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, depthTest: false }),
@@ -133,8 +172,12 @@ export class SceneRenderer {
   resize(): void {
     this.viewW = this.canvas.clientWidth;
     this.viewH = this.canvas.clientHeight;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(this.viewW, this.viewH, false);
+    this.composer.setPixelRatio(ratio);
+    this.composer.setSize(this.viewW, this.viewH);
+    this.bloom.setSize(this.viewW / 2, this.viewH / 2); // bloom demi-résolution (mobile)
     this.rig.setAspect(this.viewW / this.viewH);
   }
 
@@ -200,6 +243,16 @@ export class SceneRenderer {
     this.faunaLayer = await FaunaLayer.create(sim, urls, (mesh) => this.scene.add(mesh));
   }
 
+  /** Pose huttes, totems, champs et feux de camp (villages déjà fondés). */
+  enableSettlements(): void {
+    this.settlements = new SettlementLayer(this.sim, (obj) => this.scene.add(obj));
+  }
+
+  /** Nombre de huttes posées (-1 si les villages ne sont pas rendus) — debug. */
+  get hutCount(): number {
+    return this.settlements?.hutCount ?? -1;
+  }
+
   /** Nombre d'habitants simulés (-1 si non initialisés) — debug. */
   get inhabitantCount(): number {
     return this.inhabitants ? this.sim.agents.count : -1;
@@ -211,11 +264,10 @@ export class SceneRenderer {
   }
 
   render(sim: Simulation): void {
-    // Les animations d'idle du showcase suivent le temps réel du rendu.
+    // Temps réel du rendu : anime showcase et particules (dt borné).
     const now = performance.now();
-    if (this.showcase && this.lastFrameAt !== null) {
-      this.showcase.update(Math.min(0.1, (now - this.lastFrameAt) / 1000));
-    }
+    const dt = this.lastFrameAt === null ? 0 : Math.min(0.1, (now - this.lastFrameAt) / 1000);
+    if (this.showcase) this.showcase.update(dt);
     this.lastFrameAt = now;
 
     // Sun wheels around the world with the simulation clock; noon overhead.
@@ -235,18 +287,41 @@ export class SceneRenderer {
     this.sun.intensity = DAY_SUN_INTENSITY * Math.max(0.02, daylight) ** 1.1;
     this.hemi.intensity = NIGHT_HEMI + 0.85 * daylight;
 
+    // Lune : à l'opposé du soleil, ne porte que la nuit (bleu argenté doux).
+    const night = 1 - daylight;
+    this.moon.position.set(
+      this.moon.target.position.x - Math.cos(angle) * radius,
+      -elevation * radius,
+      this.moon.target.position.z + radius * 0.35,
+    );
+    this.moon.intensity = MOON_INTENSITY * night * night;
+
     // Ciel : nuit → aube dorée → plein jour, et la brume s'y accorde.
     this.skyColor.copy(NIGHT_SKY).lerp(DAY_SKY, daylight);
     if (daylight > 0.05) this.skyColor.lerp(DUSK_SKY, lowSun * 0.5 * daylight);
     this.scene.background = this.skyColor;
     this.fog.color.copy(this.skyColor);
 
+    // Eau animée : l'éclat suit le soleil le jour, la lune la nuit.
+    this.sunDir.copy(this.sun.position).sub(this.sun.target.position);
+    if (elevation > 0.04) {
+      this.water.update(now / 1000, this.sunDir, this.sun.color);
+    } else {
+      this.moonDir.copy(this.moon.position).sub(this.moon.target.position);
+      this.water.update(now / 1000, this.moonDir, MOONLIGHT);
+    }
+    this.sky.update(this.skyColor, this.sun.color, this.sunDir, night, now / 1000);
+
     this.weatherLayer.update();
     this.forest?.refresh();
     this.inhabitants?.update();
     this.faunaLayer?.update();
+    // Feux de camp : flammes qui dansent, halos qui portent la nuit.
+    this.settlements?.update(now / 1000, daylight);
+    // Pluie/neige : particules qui tombent sous les nuages chargés.
+    this.precipitation.update(dt);
 
     this.rig.update();
-    this.renderer.render(this.scene, this.rig.camera);
+    this.composer.render();
   }
 }

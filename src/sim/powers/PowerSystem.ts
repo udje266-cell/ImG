@@ -2,6 +2,7 @@ import type { EventBus } from "../../core/events/EventBus";
 import type { GameEvents } from "../events";
 import type { Simulation } from "../world/Simulation";
 import type { Power, PowerId, PowerInvocation } from "./Power";
+import { SPARK_COSTS } from "./SparkSystem";
 
 /**
  * Receives `intent:invokePower` events from the UI, validates them (known
@@ -44,12 +45,25 @@ export class PowerSystem {
         continue;
       }
       const cost = power.cost(sim, invocation);
+      const sparkCost = SPARK_COSTS[invocation.power] ?? 0;
+      // Atomicité : on vérifie l'Étincelle avant de toucher à la Foi.
+      if (sim.spark.current < sparkCost) {
+        sim.bus.emit("power:rejected", { power: invocation.power, reason: "insufficient-spark" });
+        continue;
+      }
       if (!sim.faith.trySpend(cost)) {
         sim.bus.emit("power:rejected", { power: invocation.power, reason: "insufficient-faith" });
         continue;
       }
+      sim.spark.trySpend(sparkCost);
       power.apply(sim, invocation);
-      sim.bus.emit("power:invoked", { power: invocation.power, cost });
+      sim.bus.emit("power:invoked", {
+        power: invocation.power,
+        cost,
+        x: invocation.x,
+        y: invocation.y,
+        radius: invocation.radius,
+      });
     }
   }
 }

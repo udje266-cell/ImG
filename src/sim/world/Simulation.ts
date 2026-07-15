@@ -6,17 +6,39 @@ import { GameClock } from "../../core/time/GameClock";
 import type { GameEvents } from "../events";
 import { FaithSystem, type FaithConfig } from "../powers/FaithSystem";
 import { FlattenPower } from "../powers/FlattenPower";
+import { GrowthPower } from "../powers/GrowthPower";
+import { BasinPower, OrogenesisPower } from "../powers/GeomancyPowers";
+import { DroughtPower } from "../powers/NaturePowers";
+import { EarthquakePower, LightningPower, VolcanoPower } from "../powers/CatastrophePowers";
+import { AbundancePower, BenedictionPower, MannaPower } from "../powers/GracePowers";
+import { BurningBushPower } from "../powers/MysteryPowers";
+import {
+  DarknessPower,
+  DelugePower,
+  FireHailPower,
+  LivestockPlaguePower,
+  LocustsPower,
+} from "../powers/PlaguePowers";
+import { BeckonPower, SpawnHerdPower } from "../powers/InfluencePowers";
 import { PowerSystem } from "../powers/PowerSystem";
+import { SparkSystem } from "../powers/SparkSystem";
 import { ProgressionSystem } from "../powers/ProgressionSystem";
 import { RainPower } from "../powers/RainPower";
 import { TerraformPower } from "../powers/TerraformPower";
 import type { TerrainGrid } from "../terrain/TerrainGrid";
 import { AgentSystem } from "../agents/AgentSystem";
+import { RELIGION_INTERVAL, ReligionSystem } from "../religion/ReligionSystem";
+import { SettlementSystem } from "../society/SettlementSystem";
 import { FaunaSystem } from "../ecology/FaunaSystem";
 import { FLORA_INTERVAL, FloraSystem } from "../ecology/FloraSystem";
 import { seasonalOffset } from "../weather/seasons";
 import { WEATHER_INTERVAL, WeatherSystem } from "../weather/WeatherSystem";
 import { generateWorld } from "../worldgen/WorldGenerator";
+
+/** Cadence (ticks) du recensement/expansion des villages. */
+export const SETTLEMENT_INTERVAL = 200;
+/** Population à partir de laquelle le peuple fonde son premier village. */
+export const FIRST_VILLAGE_POPULATION = 6;
 
 /**
  * Root of the simulation — pure domain logic, zero browser APIs, fully
@@ -40,12 +62,15 @@ export class Simulation {
   readonly rng: Rng;
   readonly terrain: TerrainGrid;
   readonly faith: FaithSystem;
+  readonly spark: SparkSystem;
   readonly powers: PowerSystem;
   readonly progression: ProgressionSystem;
   readonly weather: WeatherSystem;
   readonly flora: FloraSystem;
   readonly fauna: FaunaSystem;
   readonly agents: AgentSystem;
+  readonly settlements: SettlementSystem;
+  readonly religion: ReligionSystem;
   /** Config effective du monde — nécessaire à la sauvegarde (seed + deltas). */
   readonly worldConfig: { seed: number; width: number; height: number; seaLevel: number };
   private readonly scheduler: Scheduler<Simulation>;
@@ -60,15 +85,36 @@ export class Simulation {
     };
     this.terrain = generateWorld(this.worldConfig);
     this.faith = new FaithSystem(config.faith);
+    this.spark = new SparkSystem();
     this.progression = new ProgressionSystem(this.bus);
     this.powers = new PowerSystem(this.bus);
     this.powers.register(new TerraformPower());
     this.powers.register(new FlattenPower());
+    this.powers.register(new GrowthPower());
     this.powers.register(new RainPower());
+    this.powers.register(new OrogenesisPower());
+    this.powers.register(new BasinPower());
+    this.powers.register(new DroughtPower());
+    this.powers.register(new LightningPower());
+    this.powers.register(new EarthquakePower());
+    this.powers.register(new VolcanoPower());
+    this.powers.register(new AbundancePower());
+    this.powers.register(new BenedictionPower());
+    this.powers.register(new BeckonPower());
+    this.powers.register(new SpawnHerdPower());
+    this.powers.register(new MannaPower());
+    this.powers.register(new BurningBushPower());
+    this.powers.register(new LocustsPower());
+    this.powers.register(new LivestockPlaguePower());
+    this.powers.register(new FireHailPower());
+    this.powers.register(new DarknessPower());
+    this.powers.register(new DelugePower());
     this.weather = new WeatherSystem(this.terrain, this.rng);
     this.flora = new FloraSystem(this.terrain, this.rng);
     this.fauna = new FaunaSystem(this.terrain, this.flora, this.rng);
     this.agents = new AgentSystem(this.terrain, this.flora, this.rng, this.bus);
+    this.settlements = new SettlementSystem(this.terrain, this.rng);
+    this.religion = new ReligionSystem(this.settlements, this.agents, this.bus);
     this.applySeasonalOffset();
     this.flora.setSeason(this.clock.season);
 
@@ -81,7 +127,13 @@ export class Simulation {
     // Tick order matters and is explicit (docs/UML.md §3).
     this.scheduler = new Scheduler<Simulation>(config.now);
     this.scheduler.add({ id: "powers", update: (sim) => sim.powers.step(sim) });
-    this.scheduler.add({ id: "faith", update: (sim) => sim.faith.update() });
+    this.scheduler.add({
+      id: "faith",
+      update: (sim) => {
+        sim.faith.update();
+        sim.spark.update();
+      },
+    });
     this.scheduler.add({
       id: "weather",
       interval: WEATHER_INTERVAL,
@@ -104,6 +156,82 @@ export class Simulation {
         sim.faith.add(sim.agents.faithIncome());
       },
     });
+    // Religions : les récits s'estompent, les prêtres prêchent, les temples
+    // rayonnent une Foi passive (les cultes récompensent le dieu présent).
+    this.scheduler.add({
+      id: "religion",
+      interval: RELIGION_INTERVAL,
+      update: (sim) => {
+        sim.faith.add(sim.religion.update());
+      },
+    });
+    // Croissance des villages : suit la population (naissances) et bâtit de
+    // nouvelles huttes quand un village dépasse sa capacité.
+    this.scheduler.add({
+      id: "settlements",
+      interval: SETTLEMENT_INTERVAL,
+      update: (sim) => {
+        // Genèse : tant qu'aucun village n'existe, le peuple erre. Quand la
+        // lignée des Premiers atteint le seuil, il fonde son premier village.
+        if (sim.settlements.villages.length === 0) {
+          if (sim.agents.count >= FIRST_VILLAGE_POPULATION) {
+            sim.foundSettlements();
+            sim.bus.emit("settlements:founded", {});
+            sim.bus.emit("settlements:updated", {});
+          }
+          return;
+        }
+        if (sim.settlements.expand(sim.agents)) {
+          sim.bus.emit("settlements:updated", {});
+        }
+      },
+    });
+  }
+
+  /**
+   * Genèse (« au commencement ») : fait naître les Deux Premiers — un homme
+   * et une femme — côte à côte sur la terre viable la plus proche du centre
+   * du monde, de préférence végétalisée (il faut bien manger). Le premier
+   * village naîtra de leur descendance (voir la passe "settlements").
+   */
+  genesis(): void {
+    const cx = Math.floor(this.terrain.width / 2);
+    const cy = Math.floor(this.terrain.height / 2);
+    let best: { x: number; y: number } | null = null;
+    let bestScore = -Infinity;
+    // Anneaux croissants : première bonne terre proche du centre.
+    for (let r = 0; r < Math.max(this.terrain.width, this.terrain.height) / 2; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = cx + dx;
+          const y = cy + dy;
+          if (!this.terrain.inBounds(x, y) || this.terrain.isWater(x, y)) continue;
+          if (!this.terrain.inBounds(x + 1, y) || this.terrain.isWater(x + 1, y)) continue;
+          const score = this.flora.densityAt(x, y) - r * 0.02; // vert et central
+          if (score > bestScore) {
+            bestScore = score;
+            best = { x, y };
+          }
+        }
+      }
+      if (best && bestScore > 0.15) break; // assez vert : on s'installe
+    }
+    const spot = best ?? { x: cx, y: cy };
+    // L'homme puis la femme (l'ordre fixe les modèles 3D du rendu).
+    this.agents.spawn(spot.x + 0.5, spot.y + 0.5);
+    this.agents.spawn(spot.x + 1.5, spot.y + 0.5);
+  }
+
+  /** Fonde les villages à partir des habitants présents (peuplement initial). */
+  foundSettlements(): void {
+    this.settlements.found(this.agents);
+    // Les champs sont semés fertiles : nourriture proche des villages.
+    for (const field of this.settlements.fields) {
+      const x = Math.floor(field.x);
+      const y = Math.floor(field.y);
+      this.flora.setDensity(x, y, Math.max(this.flora.densityAt(x, y), 0.75));
+    }
   }
 
   /** Durée du dernier passage de chaque système (ms) — overlay de perf. */

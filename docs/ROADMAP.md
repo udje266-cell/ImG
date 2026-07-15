@@ -62,14 +62,25 @@ Le MVP (phases 0–1) doit prouver les fondations, pas empiler des features :
 - **`AgentSystem`** : habitants préhistoriques avec besoins (faim, fatigue, ferveur), personnalité (piété), IA utilitaire (forage/repos/errance/prière) ré-évaluée en LOD, déplacement vers cibles, foyers. Stores SoA, déterministe (stream "agents").
 - **La Foi est enfin générée par les croyants** (`faithIncome = Σ ferveur × const`) — la boucle du GDD §2 est bouclée.
 - Rendu : `InhabitantsLayer` — habitants instanciés (homme/femme préhistoriques), positionnés depuis le snapshot ; HUD population 👥. Sauvegarde v4.
-- À venir : perception/mémoire, foyers→villages→professions, pathfinding hiérarchique, objectif **10 000 agents à 60 fps** (impostors + index spatial).
+- À venir : perception/mémoire, professions, pathfinding hiérarchique, objectif **10 000 agents à 60 fps** (impostors + index spatial). *(foyers→villages : livré en Phase 5.)*
 
 ### Phase 5 — Société & économie
-- Villages, professions, stocks, production/consommation, prix émergents, commerce inter-villages.
+- **Villages (première itération ✅)** — `SettlementSystem` : regroupe les habitants dispersés en grappes déterministes (échantillonnage du point le plus éloigné), fonde un village au barycentre de chacune (calé sur tuile constructible), y plante des huttes, puis **réassigne le foyer** de chaque habitant sur son village → la population se resserre autour des villages (« rest » y ramène chacun). Rendu : `SettlementLayer` (huttes torchis+chaume et totems low-poly instanciés, géométrie procédurale, 2 draw calls). Sauvegarde v6.
+- **Vie de village ✅** — *Naissances* : un habitant prospère (nourri, reposé) fonde une famille ; l'enfant naît au foyer, plafond `MAX_POPULATION`. *Expansion* : recensement périodique (`SettlementSystem.expand`, toutes les `SETTLEMENT_INTERVAL` ticks) qui bâtit de nouvelles huttes quand un village dépasse sa capacité (spirale poursuivie). *Champs* : parcelles cultivées semées fertiles en couronne des villages. *Feux de camp* : un par village, flamme animée + halo chaud qui porte la nuit (`SettlementLayer.update`). Sauvegarde v7 (migration v6 : huttes estimées).
+- À venir : professions, stocks, production/consommation, prix émergents, commerce inter-villages ; morts naturelles et générations.
+
+### Passe qualité visuelle 2 (✅) — techniques standard appliquées
+- **Nuit lisible (« day-for-night »)** : clair de lune directionnel froid opposé au soleil (sans ombres, budget mobile), ambiance nocturne relevée, ciel de nuit bleu profond au lieu de noir.
+- **Ciel vivant** : étoiles procédurales scintillantes (grille hashée sur le dôme), disque + halo de lune à l'opposé du soleil.
+- **Feu de camp réaliste** : cercle de pierres + rondins carbonisés, braises émissives pulsantes, flamme à deux couches en blending additif (enveloppe orange + cœur jaune-blanc), volutes de fumée cyclées, lumière chaude vacillante (deux fréquences décorrélées).
+- **Eau nocturne** : l'éclat spéculaire bascule du soleil à la lune sous l'horizon.
+- **Bloom sélectif ✅** : chaîne `EffectComposer` (RenderPass → UnrealBloomPass demi-résolution → OutputPass). Rendu intermédiaire linéaire, tone mapping ACES appliqué en sortie ; seuil > 1 pour que seuls les émissifs brillants (flammes, lune, éclats d'eau plafonnés) rayonnent.
+- **Précipitations visibles ✅** : `PrecipitationLayer` — points recyclés (1 draw call) qui tombent sous les cellules météo qui précipitent réellement (`isRaining`/`isSnowing`) ; gouttes bleutées rapides, flocons blancs lents qui ondulent ; pastille ronde générée en code (dégradé radial canvas).
+- À venir (qualité) : particules feuilles/braises, impostors LOD pour forêts denses, audio (ambiances jour/nuit, crépitement du feu).
 
 ### Phase 6 — Religions dynamiques
-- **Moteur d'interprétation** : les peuples ne voient jamais la divinité, ils interprètent les événements (pluie = bénédiction, volcan = colère, éclipse = présage — cahier des charges §6) selon leur culture ; mémoire des interventions transmise en récits.
-- Témoins de miracles → récits → dogmes ; ferveur, prêtres, temples, sacrifices, schismes, conversions ; dieux rivaux simulés.
+- **Moteur d'interprétation (première itération ✅)** — `ReligionSystem` : chaque miracle a des **témoins** (habitants proches, ferveur ravivée selon la nature du prodige : bienfait/courroux/prodige) ; un miracle **sans témoin ne devient jamais un récit**. Les récits rejoignent la **mémoire du village** le plus proche (avec oubli lent) ; la composante dominante fait émerger une **doctrine** (culte de la Providence / de la Crainte / des Prodiges) — le STYLE de règne du joueur façonne les cultes. Assez de récits → un **prêtre** s'élève (prêche périodique, ferveur entretenue) ; la dévotion continue → le village érige un **temple** mégalithique (dolmen + menhirs, rendu instancié) qui rayonne une Foi passive. Sauvegarde v8.
+- À venir : sacrifices, schismes, conversions entre villages, dieux rivaux simulés, éclipses/présages interprétés.
 
 ### Phase 7 — Technologies
 - Découverte par la pratique, diffusion par contact ; **8 ères** : pierre → bronze → fer → moyen âge → renaissance → industrielle → moderne → futur (cahier des charges §9).

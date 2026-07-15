@@ -435,11 +435,20 @@ Les pouvoirs s'ouvrent par **paliers de Dévotion** (Foi cumulée à vie), souve
 
 L'architecture existante rend l'ajout d'un pouvoir **local** : implémenter l'interface `Power` (`sim/powers/Power.ts`), l'enregistrer, déclarer son seuil dans `ProgressionSystem`. Priorisation :
 
-1. **Déjà en jeu** : Soulèvement, Affaissement, Aplanir, Ondée (pluie).
-2. **Vague 1 (terrain + nature)** : Orogenèse, Lit du Serpent, Bassin, Sylve Nouvelle, Éclosion.
-3. **Vague 2 (grâces + murmures)** : Corne d'Abondance, Fécondité, Cœur de Lion, Appel du Lointain, Songe — nécessite les **habitants** (phase C).
-4. **Vague 3 (courroux)** : Foudre, Colère Tellurique, Réveil du Titan — avec système de **traces permanentes** (roche volcanique, cratères, cicatrices).
-5. **Vague 4 (spirituel + bestiaire)** : après religions et faune.
-6. **Vague 5 (apothéose)** : fin de partie.
+Le **grimoire** (`src/ui/Grimoire.ts`, onglet 📖 dédié) liste tout le catalogue
+(`src/sim/powers/catalog.ts`) groupé par les 9 écoles, avec l'état de chaque
+pouvoir (disponible / verrouillé à un seuil de Dévotion / à venir).
+
+1. **Déjà en jeu (22 pouvoirs, effets réels sur les variables partagées)** :
+   - *Fléaux (nouvelle école, inspirée de la Sainte Bible)* : **Nuée de Sauterelles** (Exode 10 — dévore la végétation), **Peste du Bétail** (Exode 9 — la faune périt), **Grêle de Feu** (Exode 9 — flore + faune + terre criblée + effroi), **Ténèbres** (Exode 10 — la ferveur s'effondre), **Déluge** (Genèse 7 — nuages saturés + sol engorgé sur une vaste région).
+   - *Grâces (ajout biblique)* : **Manne Céleste** (Exode 16 — faim effacée sans passer par la flore).
+   - *Mystères (premier pouvoir réel)* : **Buisson Ardent** (Exode 3 — prodige pur, la ferveur s'embrase).
+   - *Géomancie* : Soulèvement, Affaissement, Aplanir, **Orogenèse** (montagne), **Bassin** (cuvette/lac).
+   - *Climatomancie* : **Verdoiement** (flore→capacité), Ondée (pluie), **Sécheresse** (assèche le sol).
+   - *Grâces* : **Onction** (ferveur→Foi), **Corne d'Abondance** (flore + habitants rassasiés).
+   - *Murmures* : **Appel du Lointain** (rassemble les habitants, fenêtre d'influence de 300 ticks).
+   - *Bestiaire* : **Appel des Bêtes** (fait surgir un troupeau).
+   - *Courroux* : **Foudre** (calcine flore + décime faune), **Séisme** (bouleverse le relief), **Réveil du Titan** (cône volcanique + terres brûlées).
+2. **À venir (annoncés dans le grimoire)** : Roue des Saisons, Larme du Ciel, Sanctuaire, Pont de Pierre, Vision Prophétique, Éveil Spirituel, Bête Totem, Apothéose, Jugement Dernier — plus le reste des 76, à brancher au fil des phases (traces permanentes, religions, édifications).
 
 Chaque pouvoir suit le gabarit de progression du §3 et enrichit la matrice d'interactions du §10, en écrivant dans des **variables partagées** plutôt qu'en scriptant des résultats.
