@@ -15,8 +15,13 @@ import {
   Vector3,
   WebGLRenderer,
 } from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import type { Simulation } from "../sim/world/Simulation";
 import { CameraRig } from "./CameraRig";
+import { PrecipitationLayer } from "./PrecipitationLayer";
 import { Sky } from "./Sky";
 import { Water } from "./Water";
 import { FaunaLayer } from "./FaunaLayer";
@@ -57,6 +62,9 @@ export class SceneRenderer {
   private readonly water: Water;
   private readonly sky: Sky;
   private readonly weatherLayer: WeatherLayer;
+  private readonly precipitation: PrecipitationLayer;
+  private readonly composer: EffectComposer;
+  private readonly bloom: UnrealBloomPass;
   private readonly sunDir = new Vector3();
   private readonly moonDir = new Vector3();
   private readonly brushRing: Mesh;
@@ -110,6 +118,21 @@ export class SceneRenderer {
     this.sky.mesh.position.set(width / 2, 0, height / 2);
     this.scene.add(this.sky.mesh);
 
+    // Pluie/neige visibles sous les cellules météo qui précipitent.
+    this.precipitation = new PrecipitationLayer(sim);
+    this.scene.add(this.precipitation.points);
+
+    // Post-processing : bloom sélectif (seuil haut → seuls les feux, la lune
+    // et les éclats du soleil sur l'eau rayonnent), puis OutputPass qui
+    // applique tone mapping ACES + sRGB (le rendu intermédiaire reste linéaire).
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.rig.camera));
+    // Seuil > 1 : en HDR linéaire, seuls les émissifs vraiment brillants
+    // (flammes, lune, éclats) débordent — jamais le terrain ensoleillé.
+    this.bloom = new UnrealBloomPass(new Vector2(1, 1), 0.32, 0.5, 1.12);
+    this.composer.addPass(this.bloom);
+    this.composer.addPass(new OutputPass());
+
     // Soleil directionnel chaud, projetant des ombres douces sur le relief.
     this.sun = new DirectionalLight(0xfff0d6, DAY_SUN_INTENSITY);
     this.sun.target.position.set(width / 2, 0, height / 2);
@@ -149,8 +172,12 @@ export class SceneRenderer {
   resize(): void {
     this.viewW = this.canvas.clientWidth;
     this.viewH = this.canvas.clientHeight;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(this.viewW, this.viewH, false);
+    this.composer.setPixelRatio(ratio);
+    this.composer.setSize(this.viewW, this.viewH);
+    this.bloom.setSize(this.viewW / 2, this.viewH / 2); // bloom demi-résolution (mobile)
     this.rig.setAspect(this.viewW / this.viewH);
   }
 
@@ -237,11 +264,10 @@ export class SceneRenderer {
   }
 
   render(sim: Simulation): void {
-    // Les animations d'idle du showcase suivent le temps réel du rendu.
+    // Temps réel du rendu : anime showcase et particules (dt borné).
     const now = performance.now();
-    if (this.showcase && this.lastFrameAt !== null) {
-      this.showcase.update(Math.min(0.1, (now - this.lastFrameAt) / 1000));
-    }
+    const dt = this.lastFrameAt === null ? 0 : Math.min(0.1, (now - this.lastFrameAt) / 1000);
+    if (this.showcase) this.showcase.update(dt);
     this.lastFrameAt = now;
 
     // Sun wheels around the world with the simulation clock; noon overhead.
@@ -292,8 +318,10 @@ export class SceneRenderer {
     this.faunaLayer?.update();
     // Feux de camp : flammes qui dansent, halos qui portent la nuit.
     this.settlements?.update(now / 1000, daylight);
+    // Pluie/neige : particules qui tombent sous les nuages chargés.
+    this.precipitation.update(dt);
 
     this.rig.update();
-    this.renderer.render(this.scene, this.rig.camera);
+    this.composer.render();
   }
 }

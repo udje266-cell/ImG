@@ -113,10 +113,11 @@ const FRAG = /* glsl */ `
     float diff = clamp(dot(n, normalize(uSunDir)), 0.0, 1.0);
     col *= 0.55 + 0.6 * diff;
 
-    // Éclat spéculaire (glint) qui danse sur les vagues.
+    // Éclat spéculaire (glint) qui danse sur les vagues — plafonné pour que
+    // le bloom scintille sans jamais laver l'image en blanc.
     vec3 h = normalize(normalize(uSunDir) + viewDir);
     float spec = pow(clamp(dot(n, h), 0.0, 1.0), 220.0);
-    col += uSunColor * spec * 1.6;
+    col += uSunColor * min(spec * 1.2, 1.4);
 
     // Écume/scintillement de crête sur les fines rides.
     float crest = smoothstep(0.6, 1.0, fres) * 0.10;

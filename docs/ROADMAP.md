@@ -74,7 +74,9 @@ Le MVP (phases 0–1) doit prouver les fondations, pas empiler des features :
 - **Ciel vivant** : étoiles procédurales scintillantes (grille hashée sur le dôme), disque + halo de lune à l'opposé du soleil.
 - **Feu de camp réaliste** : cercle de pierres + rondins carbonisés, braises émissives pulsantes, flamme à deux couches en blending additif (enveloppe orange + cœur jaune-blanc), volutes de fumée cyclées, lumière chaude vacillante (deux fréquences décorrélées).
 - **Eau nocturne** : l'éclat spéculaire bascule du soleil à la lune sous l'horizon.
-- À venir (qualité) : bloom sélectif (post-processing léger), particules (pluie/neige/feuilles), impostors LOD pour forêts denses, audio (ambiances jour/nuit, feu).
+- **Bloom sélectif ✅** : chaîne `EffectComposer` (RenderPass → UnrealBloomPass demi-résolution → OutputPass). Rendu intermédiaire linéaire, tone mapping ACES appliqué en sortie ; seuil > 1 pour que seuls les émissifs brillants (flammes, lune, éclats d'eau plafonnés) rayonnent.
+- **Précipitations visibles ✅** : `PrecipitationLayer` — points recyclés (1 draw call) qui tombent sous les cellules météo qui précipitent réellement (`isRaining`/`isSnowing`) ; gouttes bleutées rapides, flocons blancs lents qui ondulent ; pastille ronde générée en code (dégradé radial canvas).
+- À venir (qualité) : particules feuilles/braises, impostors LOD pour forêts denses, audio (ambiances jour/nuit, crépitement du feu).
 
 ### Phase 6 — Religions dynamiques
 - **Moteur d'interprétation** : les peuples ne voient jamais la divinité, ils interprètent les événements (pluie = bénédiction, volcan = colère, éclipse = présage — cahier des charges §6) selon leur culture ; mémoire des interventions transmise en récits.
