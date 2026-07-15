@@ -6,33 +6,33 @@ using Xunit;
 namespace ImG.Core.Tests
 {
     /// <summary>
-    /// Ères technologiques — parité avec le TypeScript (<c>tests/sim/era.test.ts</c>).
-    /// Les valeurs de référence sont calculées depuis l'implémentation TS pour
-    /// garantir un comportement identique entre les deux moteurs.
+    /// Les huit âges de l'humanité — parité avec le TypeScript
+    /// (<c>tests/sim/era.test.ts</c>). Les valeurs de référence sont calculées
+    /// depuis l'implémentation TS pour garantir un comportement identique.
     /// </summary>
     public class EraTests
     {
         [Fact]
-        public void Starts_at_primitive_clan()
+        public void Starts_at_stone_tribe()
         {
             var era = new EraSystem(new EventBus());
-            Assert.Equal(Era.Primitive, era.Era);
-            Assert.Equal("Âge Primitif", era.CurrentInfo.Name);
-            Assert.Equal("Clan", era.CurrentInfo.Politics);
+            Assert.Equal(Era.Stone, era.Era);
+            Assert.Equal("Âge de Pierre", era.CurrentInfo.Name);
+            Assert.Equal("Tribu", era.CurrentInfo.Politics);
         }
 
         [Fact]
-        public void Knowledge_crosses_thresholds_in_order_once_each()
+        public void Knowledge_crosses_eight_thresholds_in_order_once_each()
         {
             var bus = new EventBus();
             var crosses = new List<int>();
             bus.On<EraAdvanced>(e => crosses.Add((int)e.Era));
             var era = new EraSystem(bus);
 
-            for (int i = 0; i < 400; i++) era.Advance(80, 5, 3);
+            for (int i = 0; i < 5000; i++) era.Advance(80, 5, 3);
 
-            Assert.Equal(Era.Iron, era.Era);
-            Assert.Equal(new[] { 1, 2, 3 }, crosses); // Pierre, Bronze, Fer — une fois chacun
+            Assert.Equal(Era.Future, era.Era);
+            Assert.Equal(new[] { 1, 2, 3, 4, 5, 6, 7 }, crosses); // Bronze … Futur, une fois chacun
         }
 
         [Fact]
@@ -40,28 +40,29 @@ namespace ImG.Core.Tests
         {
             var era = new EraSystem(new EventBus());
             for (int i = 0; i < 100; i++) era.Advance(80, 5, 3);
-            // Référence TS : knowledge = 1529.9999999999973, era = Stone.
+            // Référence TS : knowledge = 1529.9999999999973 → Bronze (≥ 500, < 2200).
             Assert.Equal(1529.9999999999973, era.Knowledge, 9);
-            Assert.Equal(Era.Stone, era.Era);
+            Assert.Equal(Era.Bronze, era.Era);
         }
 
         [Fact]
         public void Progress_is_half_at_mid_threshold()
         {
             var era = new EraSystem(new EventBus());
-            era.Advance((int)(250 / 0.06), 0, 0); // ~250 de Savoir → mi-chemin de Pierre
+            era.Advance((int)(250 / 0.06), 0, 0); // ~250 de Savoir → mi-chemin du Bronze
             Assert.True(era.Progress > 0.45 && era.Progress < 0.55);
+            Assert.Equal(Era.Stone, era.Era);
         }
 
         [Fact]
-        public void Iron_is_last_progress_capped_at_one()
+        public void Future_is_last_progress_capped_at_one()
         {
             var era = new EraSystem(new EventBus());
-            for (int i = 0; i < 1000; i++) era.Advance(100, 8, 5);
-            Assert.Equal(Era.Iron, era.Era);
+            for (int i = 0; i < 5000; i++) era.Advance(100, 8, 5);
+            Assert.Equal(Era.Future, era.Era);
             Assert.Equal(1.0, era.Progress, 10);
             for (int i = 0; i < 100; i++) era.Advance(100, 8, 5);
-            Assert.Equal(Era.Iron, era.Era);
+            Assert.Equal(Era.Future, era.Era);
         }
 
         [Fact]
@@ -77,13 +78,27 @@ namespace ImG.Core.Tests
         }
 
         [Fact]
+        public void Has_eight_eras_in_historical_order()
+        {
+            Assert.Equal(8, EraSystem.EraCount);
+            Assert.Equal(8, EraSystem.Info.Length);
+            var names = new List<string>();
+            foreach (var info in EraSystem.Info) names.Add(info.Name);
+            Assert.Equal(new[]
+            {
+                "Âge de Pierre", "Âge du Bronze", "Âge du Fer", "Moyen Âge",
+                "Renaissance", "Révolution Industrielle", "Époque Moderne", "Futur",
+            }, names);
+        }
+
+        [Fact]
         public void Restore_clamps_out_of_range_era()
         {
             var era = new EraSystem(new EventBus());
-            era.Restore(9999, 99);
-            Assert.Equal(Era.Iron, era.Era);
+            era.Restore(99999, 99);
+            Assert.Equal(Era.Future, era.Era);
             era.Restore(-5, -3);
-            Assert.Equal(Era.Primitive, era.Era);
+            Assert.Equal(Era.Stone, era.Era);
         }
     }
 }

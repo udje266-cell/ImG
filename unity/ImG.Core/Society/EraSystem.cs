@@ -2,13 +2,17 @@ using ImG.Core.Events;
 
 namespace ImG.Core.Society
 {
-    /// <summary>Les quatre ères technologiques de la civilisation.</summary>
+    /// <summary>Les huit grands âges de la civilisation (de la pierre au futur).</summary>
     public enum Era
     {
-        Primitive = 0,
-        Stone = 1,
-        Bronze = 2,
-        Iron = 3,
+        Stone = 0,
+        Bronze = 1,
+        Iron = 2,
+        Medieval = 3,
+        Renaissance = 4,
+        Industrial = 5,
+        Modern = 6,
+        Future = 7,
     }
 
     /// <summary>Charge utile de l'événement « changement d'ère ».</summary>
@@ -50,17 +54,23 @@ namespace ImG.Core.Society
     /// </summary>
     public sealed class EraSystem
     {
-        public const int EraCount = 4;
+        public const int EraCount = 8;
+        /// <summary>Dernière ère (borne haute).</summary>
+        public const Era LastEra = Era.Future;
 
         /// <summary>Savoir cumulé requis pour ATTEINDRE chaque ère (index = ère).</summary>
-        public static readonly double[] EraKnowledge = { 0, 500, 2200, 6000 };
+        public static readonly double[] EraKnowledge = { 0, 500, 2200, 6000, 12000, 22000, 38000, 60000 };
 
         public static readonly EraInfo[] Info =
         {
-            new EraInfo("Âge Primitif", "Clan", "🦴"),
             new EraInfo("Âge de Pierre", "Tribu", "🪨"),
             new EraInfo("Âge du Bronze", "Chefferie", "⚒️"),
             new EraInfo("Âge du Fer", "Royaume", "🛡️"),
+            new EraInfo("Moyen Âge", "Féodalité", "🏰"),
+            new EraInfo("Renaissance", "Cité-État", "🎨"),
+            new EraInfo("Révolution Industrielle", "Nation", "🏭"),
+            new EraInfo("Époque Moderne", "République", "🏙️"),
+            new EraInfo("Futur", "Fédération", "🚀"),
         };
 
         /// <summary>Cadence (ticks) d'accumulation du Savoir.</summary>
@@ -71,7 +81,7 @@ namespace ImG.Core.Society
 
         private readonly EventBus _bus;
         private double _knowledge;
-        private Era _era = Era.Primitive;
+        private Era _era = Era.Stone;
 
         public EraSystem(EventBus bus)
         {
@@ -87,7 +97,7 @@ namespace ImG.Core.Society
         {
             get
             {
-                if (_era >= Era.Iron) return 1;
+                if (_era >= LastEra) return 1;
                 double from = EraKnowledge[(int)_era];
                 double to = EraKnowledge[(int)_era + 1];
                 double t = (_knowledge - from) / (to - from);
@@ -106,7 +116,7 @@ namespace ImG.Core.Society
                 villages * KnowledgePerVillage +
                 temples * KnowledgePerTemple;
 
-            while (_era < Era.Iron && _knowledge >= EraKnowledge[(int)_era + 1])
+            while (_era < LastEra && _knowledge >= EraKnowledge[(int)_era + 1])
             {
                 _era++;
                 var info = Info[(int)_era];
@@ -119,7 +129,7 @@ namespace ImG.Core.Society
         public void Restore(double knowledge, int era)
         {
             _knowledge = knowledge;
-            int clamped = era < 0 ? 0 : (era > (int)Era.Iron ? (int)Era.Iron : era);
+            int clamped = era < 0 ? 0 : (era > (int)LastEra ? (int)LastEra : era);
             _era = (Era)clamped;
         }
     }

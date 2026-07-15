@@ -28,7 +28,7 @@ de rendu, **sans toucher au jeu web** qui reste la version de référence jouabl
 | `ImG.Core/Worldgen/WorldGenerator.cs` | pipeline de génération procédurale |
 | `ImG.Core/Terrain/TerrainGrid.cs` | grille de terrain (chunks, biomes dérivés) |
 | `ImG.Core/Powers/FaithSystem.cs`, `SparkSystem.cs` | ressources divines (Foi, Étincelle) |
-| `ImG.Core/Society/EraSystem.cs` | ères technologiques (primitif → fer, Savoir, politique) |
+| `ImG.Core/Society/EraSystem.cs` | 8 âges historiques (Pierre → Futur, Savoir, politique) |
 | `ImG.Core/Weather/WeatherSystem.cs`, `Seasons.cs` | météo cellulaire (nuages, vent, pluie/neige) |
 
 La suite (flore, faune, habitants, villages, religions, les 22 pouvoirs) se

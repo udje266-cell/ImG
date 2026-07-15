@@ -19,14 +19,21 @@ const AGENT_HEIGHT = 1.6;
 const MAX_AGENTS = 4000;
 
 /**
- * Teinte des habitants par ère : peaux ternes (Primitif) → étoffes plus riches
- * (Bronze) → tons gris-acier vêtus/armés (Fer). Multiplie la texture du modèle.
+ * Teinte des habitants par ère (l'apparence évolue avec l'âge) : peaux et
+ * fourrures ternes (Pierre) → étoffes tissées (Bronze/Fer) → laines et robes
+ * médiévales → riches teintures de la Renaissance → gris ouvrier de l'ère
+ * industrielle → tons modernes → combinaisons claires du futur. Multiplie la
+ * texture du modèle.
  */
 const ERA_TINT: Record<Era, number> = {
-  [Era.Primitive]: 0xd6c6b4,
-  [Era.Stone]: 0xe6dac2,
-  [Era.Bronze]: 0xf0d4ac,
-  [Era.Iron]: 0xd2d6e2,
+  [Era.Stone]: 0xd9c9b6, // peaux, fourrures
+  [Era.Bronze]: 0xe8cfa4, // lin tissé
+  [Era.Iron]: 0xcdb48c, // tuniques
+  [Era.Medieval]: 0x9c7350, // laines et robes brunes
+  [Era.Renaissance]: 0x8a6ab0, // teintures riches (pourpre)
+  [Era.Industrial]: 0x5c666e, // gris ouvrier
+  [Era.Modern]: 0x4f83ad, // vêtements modernes
+  [Era.Future]: 0xc8e6ff, // combinaisons claires
 };
 
 /**
