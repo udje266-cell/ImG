@@ -32,4 +32,6 @@ export type GameEvents = {
   "religion:priestOrdained": { village: number; doctrine: string };
   /** Un village érige un temple à son dieu — la Foi y rayonne. */
   "religion:templeRaised": { village: number; doctrine: string };
+  /** La civilisation change d'ère technologique (âge de pierre → fer). */
+  "era:advanced": { era: number; name: string; politics: string };
 };

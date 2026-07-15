@@ -17,6 +17,7 @@ import {
   SphereGeometry,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { Era } from "../sim/society/EraSystem";
 import type { Simulation } from "../sim/world/Simulation";
 import { groundHeightAt } from "./TerrainMesh";
 
@@ -48,29 +49,135 @@ function paint(geo: BufferGeometry, hex: number): BufferGeometry {
   return geo;
 }
 
-/** Hutte = mur torchis (cylindre) + toit de chaume (cône), base à y=0. */
-function makeHutGeometry(): BufferGeometry {
-  const wallH = 0.55;
-  const roofH = 0.7;
-  const wall = new CylinderGeometry(0.42, 0.5, wallH, 7);
-  wall.translate(0, wallH / 2, 0);
-  paint(wall, 0x9c6b43); // torchis brun
-  const roof = new ConeGeometry(0.7, roofH, 7);
-  roof.translate(0, wallH + roofH / 2, 0);
-  paint(roof, 0xc9a35c); // chaume paille
-  return mergeGeometries([wall, roof], false)!;
+/**
+ * Habitation selon l'ère (le peuple évolue — cahier des charges §7) :
+ *  - Primitif : tente de peaux (cône) sur perches croisées.
+ *  - Pierre   : hutte ronde en torchis + soubassement de pierre + toit de chaume.
+ *  - Bronze   : maison carrée en briques crues (adobe) à toit en croupe.
+ *  - Fer      : maison de pierre plus haute, toit de tuiles à deux pans + cheminée.
+ */
+function makeHouseGeometry(era: Era): BufferGeometry {
+  const parts: BufferGeometry[] = [];
+  switch (era) {
+    case Era.Primitive: {
+      const cover = new ConeGeometry(0.55, 1.05, 8);
+      cover.translate(0, 0.52, 0);
+      paint(cover, 0x8a5a3a); // peaux tannées
+      parts.push(cover);
+      for (let i = 0; i < 3; i++) {
+        const pole = new CylinderGeometry(0.03, 0.03, 1.3, 4);
+        pole.rotateZ(0.18);
+        pole.rotateY((i / 3) * Math.PI * 2);
+        pole.translate(0, 0.62, 0);
+        paint(pole, 0x5a3c22);
+        parts.push(pole);
+      }
+      break;
+    }
+    case Era.Stone: {
+      const baseRing = new CylinderGeometry(0.52, 0.56, 0.2, 9);
+      baseRing.translate(0, 0.1, 0);
+      paint(baseRing, 0x8f8a80); // pierres du soubassement
+      parts.push(baseRing);
+      const wall = new CylinderGeometry(0.42, 0.5, 0.5, 9);
+      wall.translate(0, 0.45, 0);
+      paint(wall, 0x9c6b43); // torchis
+      parts.push(wall);
+      const roof = new ConeGeometry(0.7, 0.7, 9);
+      roof.translate(0, 1.05, 0);
+      paint(roof, 0xc9a35c); // chaume
+      parts.push(roof);
+      break;
+    }
+    case Era.Bronze: {
+      const wall = new BoxGeometry(0.9, 0.7, 0.9);
+      wall.translate(0, 0.35, 0);
+      paint(wall, 0xba8b5c); // briques crues / adobe
+      parts.push(wall);
+      const roof = new ConeGeometry(0.78, 0.42, 4);
+      roof.rotateY(Math.PI / 4);
+      roof.translate(0, 0.9, 0);
+      paint(roof, 0x7d5535); // toit de terre en croupe
+      parts.push(roof);
+      break;
+    }
+    case Era.Iron: {
+      const wall = new BoxGeometry(0.95, 0.95, 0.9);
+      wall.translate(0, 0.48, 0);
+      paint(wall, 0x8f8d88); // pierre taillée
+      parts.push(wall);
+      // Toit à deux pans (prisme) en tuiles.
+      const roof = new CylinderGeometry(0.001, 0.7, 0.55, 3);
+      roof.rotateZ(Math.PI / 2);
+      roof.scale(1, 1, 0.72);
+      roof.translate(0, 1.2, 0);
+      paint(roof, 0xa14a33); // tuiles terre cuite
+      parts.push(roof);
+      const chimney = new BoxGeometry(0.14, 0.4, 0.14);
+      chimney.translate(0.28, 1.25, 0.22);
+      paint(chimney, 0x6f6a63);
+      parts.push(chimney);
+      break;
+    }
+  }
+  return mergeGeometries(parts, false)!;
 }
 
-/** Totem = poteau (cylindre) + tête sculptée (cône), base à y=0. */
-function makeTotemGeometry(): BufferGeometry {
-  const poleH = 1.5;
-  const pole = new CylinderGeometry(0.12, 0.15, poleH, 6);
-  pole.translate(0, poleH / 2, 0);
-  paint(pole, 0x6b4a2f); // bois sombre
-  const head = new ConeGeometry(0.28, 0.5, 6);
-  head.translate(0, poleH + 0.2, 0);
-  paint(head, 0xb5532e); // tête peinte en ocre rouge
-  return mergeGeometries([pole, head], false)!;
+/**
+ * Monument du village selon l'ère : totem de bois (Primitif) → menhir dressé
+ * (Pierre) → obélisque à cape de bronze (Bronze) → colonne de pierre à statue
+ * (Fer). Il marque le cœur du village et affiche l'ère d'un coup d'œil.
+ */
+function makeMonumentGeometry(era: Era): BufferGeometry {
+  const parts: BufferGeometry[] = [];
+  switch (era) {
+    case Era.Primitive: {
+      const pole = new CylinderGeometry(0.12, 0.15, 1.5, 6);
+      pole.translate(0, 0.75, 0);
+      paint(pole, 0x6b4a2f);
+      parts.push(pole);
+      const head = new ConeGeometry(0.28, 0.5, 6);
+      head.translate(0, 1.7, 0);
+      paint(head, 0xb5532e);
+      parts.push(head);
+      break;
+    }
+    case Era.Stone: {
+      const menhir = new BoxGeometry(0.34, 1.7, 0.26);
+      menhir.rotateZ(0.05);
+      menhir.translate(0, 0.85, 0);
+      paint(menhir, 0x928b80); // granit dressé
+      parts.push(menhir);
+      break;
+    }
+    case Era.Bronze: {
+      const obelisk = new CylinderGeometry(0.1, 0.28, 1.9, 4);
+      obelisk.translate(0, 0.95, 0);
+      paint(obelisk, 0xc2a878); // grès
+      parts.push(obelisk);
+      const cap = new ConeGeometry(0.16, 0.28, 4);
+      cap.translate(0, 2.02, 0);
+      paint(cap, 0xb87333); // cape de bronze
+      parts.push(cap);
+      break;
+    }
+    case Era.Iron: {
+      const column = new CylinderGeometry(0.2, 0.24, 1.7, 10);
+      column.translate(0, 0.85, 0);
+      paint(column, 0x9a938a); // colonne de pierre
+      parts.push(column);
+      const body = new BoxGeometry(0.34, 0.5, 0.24);
+      body.translate(0, 1.95, 0);
+      paint(body, 0x7f7a72); // statue
+      parts.push(body);
+      const head = new SphereGeometry(0.16, 8, 6);
+      head.translate(0, 2.34, 0);
+      paint(head, 0x8a857c);
+      parts.push(head);
+      break;
+    }
+  }
+  return mergeGeometries(parts, false)!;
 }
 
 /** Champ = parcelle de terre labourée (sillons) + rangées de pousses. */
@@ -185,8 +292,9 @@ export class SettlementLayer {
     addToScene: (obj: Object3D) => void,
   ) {
     const mat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true });
-    this.huts = new InstancedMesh(makeHutGeometry(), mat, MAX_HUTS);
-    this.totems = new InstancedMesh(makeTotemGeometry(), mat, MAX_TOTEMS);
+    const era = sim.era.era;
+    this.huts = new InstancedMesh(makeHouseGeometry(era), mat, MAX_HUTS);
+    this.totems = new InstancedMesh(makeMonumentGeometry(era), mat, MAX_TOTEMS);
     this.fieldsMesh = new InstancedMesh(makeFieldGeometry(), mat, MAX_FIELDS);
     this.temples = new InstancedMesh(makeTempleGeometry(), mat, MAX_TEMPLES);
     for (const m of [this.huts, this.totems, this.fieldsMesh, this.temples]) {
@@ -200,6 +308,18 @@ export class SettlementLayer {
     this.build();
     sim.bus.on("settlements:updated", () => this.build());
     sim.bus.on("religion:templeRaised", () => this.build());
+    // Changement d'ère : les bâtiments et monuments se reconstruisent.
+    sim.bus.on("era:advanced", () => this.rebuildForEra());
+  }
+
+  /** Remplace la géométrie des habitations et monuments par celle de l'ère. */
+  private rebuildForEra(): void {
+    const era = this.sim.era.era;
+    this.huts.geometry.dispose();
+    this.huts.geometry = makeHouseGeometry(era);
+    this.totems.geometry.dispose();
+    this.totems.geometry = makeMonumentGeometry(era);
+    this.build();
   }
 
   /** (Re)pose huttes, totems, champs et feux depuis l'état des villages. */

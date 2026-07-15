@@ -28,6 +28,7 @@ import { TerraformPower } from "../powers/TerraformPower";
 import type { TerrainGrid } from "../terrain/TerrainGrid";
 import { AgentSystem } from "../agents/AgentSystem";
 import { RELIGION_INTERVAL, ReligionSystem } from "../religion/ReligionSystem";
+import { ERA_INTERVAL, EraSystem } from "../society/EraSystem";
 import { SettlementSystem } from "../society/SettlementSystem";
 import { FaunaSystem } from "../ecology/FaunaSystem";
 import { FLORA_INTERVAL, FloraSystem } from "../ecology/FloraSystem";
@@ -71,6 +72,7 @@ export class Simulation {
   readonly agents: AgentSystem;
   readonly settlements: SettlementSystem;
   readonly religion: ReligionSystem;
+  readonly era: EraSystem;
   /** Config effective du monde — nécessaire à la sauvegarde (seed + deltas). */
   readonly worldConfig: { seed: number; width: number; height: number; seaLevel: number };
   private readonly scheduler: Scheduler<Simulation>;
@@ -115,6 +117,7 @@ export class Simulation {
     this.agents = new AgentSystem(this.terrain, this.flora, this.rng, this.bus);
     this.settlements = new SettlementSystem(this.terrain, this.rng);
     this.religion = new ReligionSystem(this.settlements, this.agents, this.bus);
+    this.era = new EraSystem(this.bus);
     this.applySeasonalOffset();
     this.flora.setSeason(this.clock.season);
 
@@ -163,6 +166,17 @@ export class Simulation {
       interval: RELIGION_INTERVAL,
       update: (sim) => {
         sim.faith.add(sim.religion.update());
+      },
+    });
+    // Ères technologiques : le Savoir s'accumule avec la population, les
+    // villages et les temples ; franchir un palier fait évoluer la civilisation.
+    this.scheduler.add({
+      id: "era",
+      interval: ERA_INTERVAL,
+      update: (sim) => {
+        let temples = 0;
+        for (const c of sim.religion.villageCults) if (c.temple) temples++;
+        sim.era.advance(sim.agents.count, sim.settlements.villages.length, temples);
       },
     });
     // Croissance des villages : suit la population (naissances) et bâtit de

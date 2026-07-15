@@ -19,9 +19,10 @@ import { generateWorld } from "../worldgen/WorldGenerator";
  * v6 → v7 : vie de village — huttes par village (vhuts) + champs (fx, fy).
  * v7 → v8 : religions — cultes par village (mémoire, prêtres, temples).
  * v8 → v9 : Étincelle divine (jauge de tempo des catastrophes).
+ * v9 → v10 : ères technologiques (Savoir cumulé + ère courante).
  * Une sauvegarde plus ancienne se charge sans la partie manquante.
  */
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 
 interface CellDeltas {
   /** Indices (y * width + x) des cellules modifiées vs la baseline. */
@@ -88,6 +89,7 @@ type AgentsState = ReturnType<Simulation["agents"]["serialize"]>;
 type FaunaState = ReturnType<Simulation["fauna"]["serialize"]>;
 type SettlementsState = ReturnType<Simulation["settlements"]["serialize"]>;
 type ReligionState = ReturnType<Simulation["religion"]["serialize"]>;
+type EraState = ReturnType<Simulation["era"]["serialize"]>;
 
 /** Forme FIGÉE des villages en v6 (avant vie de village) — ne pas dériver. */
 interface SettlementsStateV6 {
@@ -128,6 +130,11 @@ export interface SaveDataV9 extends Omit<SaveDataV8, "version"> {
   spark: number;
 }
 
+export interface SaveDataV10 extends Omit<SaveDataV9, "version"> {
+  version: 10;
+  era: EraState;
+}
+
 export type AnySaveData =
   | SaveDataV1
   | SaveDataV2
@@ -137,7 +144,8 @@ export type AnySaveData =
   | SaveDataV6
   | SaveDataV7
   | SaveDataV8
-  | SaveDataV9;
+  | SaveDataV9
+  | SaveDataV10;
 
 function diff(current: Float32Array, baseline: Float32Array): CellDeltas {
   const indices: number[] = [];
@@ -152,7 +160,7 @@ function diff(current: Float32Array, baseline: Float32Array): CellDeltas {
 }
 
 /** Capture l'état complet de la simulation en données JSON-sérialisables. */
-export function serializeSimulation(sim: Simulation): SaveDataV9 {
+export function serializeSimulation(sim: Simulation): SaveDataV10 {
   const { seed, width, height, seaLevel } = sim.worldConfig;
   const baseline = generateWorld(sim.worldConfig);
   return {
@@ -164,6 +172,7 @@ export function serializeSimulation(sim: Simulation): SaveDataV9 {
     tick: sim.clock.tick,
     faith: sim.faith.current,
     spark: sim.spark.current,
+    era: sim.era.serialize(),
     devotion: sim.progression.devotion,
     agents: sim.agents.serialize(),
     fauna: sim.fauna.serialize(),
@@ -203,12 +212,14 @@ const EMPTY_AGENTS: AgentsState = {
 const EMPTY_FAUNA: FaunaState = { px: [], py: [], energy: [], species: [], cooldown: [], rngState: 0 };
 const EMPTY_SETTLEMENTS: SettlementsState = { vx: [], vy: [], vpop: [], vhuts: [], dx: [], dy: [], fx: [], fy: [] };
 const EMPTY_RELIGION: ReligionState = { bienfait: [], courroux: [], prodige: [], priest: [], temple: [] };
+const EMPTY_ERA: EraState = { knowledge: 0, era: 0 };
 
 /** Migre une sauvegarde v1 (sans météo/flore/habitants/faune/villages) vers la structure courante. */
-function migrateV1(data: SaveDataV1): SaveDataV9 {
+function migrateV1(data: SaveDataV1): SaveDataV10 {
   return {
-    version: 9,
+    version: 10,
     spark: 100,
+    era: EMPTY_ERA,
     seed: data.seed,
     width: data.width,
     height: data.height,
@@ -227,44 +238,50 @@ function migrateV1(data: SaveDataV1): SaveDataV9 {
   };
 }
 
-function migrateV2(data: SaveDataV2): SaveDataV9 {
+function migrateV2(data: SaveDataV2): SaveDataV10 {
   return {
-    ...data, version: 9, spark: 100, flora: EMPTY_FLORA, agents: EMPTY_AGENTS,
+    ...data, version: 10, spark: 100, era: EMPTY_ERA, flora: EMPTY_FLORA, agents: EMPTY_AGENTS,
     fauna: EMPTY_FAUNA, settlements: EMPTY_SETTLEMENTS, religion: EMPTY_RELIGION,
   };
 }
 
-function migrateV3(data: SaveDataV3): SaveDataV9 {
-  return { ...data, version: 9, spark: 100, agents: EMPTY_AGENTS, fauna: EMPTY_FAUNA, settlements: EMPTY_SETTLEMENTS, religion: EMPTY_RELIGION };
+function migrateV3(data: SaveDataV3): SaveDataV10 {
+  return { ...data, version: 10, spark: 100, era: EMPTY_ERA, agents: EMPTY_AGENTS, fauna: EMPTY_FAUNA, settlements: EMPTY_SETTLEMENTS, religion: EMPTY_RELIGION };
 }
 
-function migrateV4(data: SaveDataV4): SaveDataV9 {
-  return { ...data, version: 9, spark: 100, fauna: EMPTY_FAUNA, settlements: EMPTY_SETTLEMENTS, religion: EMPTY_RELIGION };
+function migrateV4(data: SaveDataV4): SaveDataV10 {
+  return { ...data, version: 10, spark: 100, era: EMPTY_ERA, fauna: EMPTY_FAUNA, settlements: EMPTY_SETTLEMENTS, religion: EMPTY_RELIGION };
 }
 
-function migrateV5(data: SaveDataV5): SaveDataV9 {
-  return { ...data, version: 9, spark: 100, settlements: EMPTY_SETTLEMENTS, religion: EMPTY_RELIGION };
+function migrateV5(data: SaveDataV5): SaveDataV10 {
+  return { ...data, version: 10, spark: 100, era: EMPTY_ERA, settlements: EMPTY_SETTLEMENTS, religion: EMPTY_RELIGION };
 }
 
 /** v6 → v7 : villages sans vie de village — huttes estimées au restore, aucun champ. */
-function migrateV6(data: SaveDataV6): SaveDataV9 {
+function migrateV6(data: SaveDataV6): SaveDataV10 {
   return {
     ...data,
-    version: 9,
+    version: 10,
     spark: 100,
+    era: EMPTY_ERA,
     settlements: { ...data.settlements, vhuts: [], fx: [], fy: [] },
     religion: EMPTY_RELIGION,
   };
 }
 
 /** v7 → v8 : pas encore de religions — cultes vierges. */
-function migrateV7(data: SaveDataV7): SaveDataV9 {
-  return { ...data, version: 9, spark: 100, religion: EMPTY_RELIGION };
+function migrateV7(data: SaveDataV7): SaveDataV10 {
+  return { ...data, version: 10, spark: 100, era: EMPTY_ERA, religion: EMPTY_RELIGION };
 }
 
 /** v8 → v9 : pas encore d'Étincelle — jauge pleine. */
-function migrateV8(data: SaveDataV8): SaveDataV9 {
-  return { ...data, version: 9, spark: 100 };
+function migrateV8(data: SaveDataV8): SaveDataV10 {
+  return { ...data, version: 10, spark: 100, era: EMPTY_ERA };
+}
+
+/** v9 → v10 : pas encore d'ères — âge primitif, savoir nul. */
+function migrateV9(data: SaveDataV9): SaveDataV10 {
+  return { ...data, version: 10, era: EMPTY_ERA };
 }
 
 /**
@@ -272,7 +289,7 @@ function migrateV8(data: SaveDataV8): SaveDataV9 {
  * est passé tel quel au constructeur (injection de l'horloge de mesure).
  */
 export function loadSimulation(raw: AnySaveData, options: { now?: () => number } = {}): Simulation {
-  let data: SaveDataV9;
+  let data: SaveDataV10;
   if (raw.version === 1) data = migrateV1(raw);
   else if (raw.version === 2) data = migrateV2(raw);
   else if (raw.version === 3) data = migrateV3(raw);
@@ -281,7 +298,8 @@ export function loadSimulation(raw: AnySaveData, options: { now?: () => number }
   else if (raw.version === 6) data = migrateV6(raw);
   else if (raw.version === 7) data = migrateV7(raw);
   else if (raw.version === 8) data = migrateV8(raw);
-  else if (raw.version === 9) data = raw;
+  else if (raw.version === 9) data = migrateV9(raw);
+  else if (raw.version === 10) data = raw;
   else throw new Error(`Save version ${(raw as { version: number }).version} not supported`);
 
   const sim = new Simulation({
@@ -307,6 +325,7 @@ export function loadSimulation(raw: AnySaveData, options: { now?: () => number }
   if (data.fauna.px.length > 0) sim.fauna.restore(data.fauna);
   if (data.settlements.vx.length > 0) sim.settlements.restore(data.settlements);
   if (data.religion.bienfait.length > 0) sim.religion.restore(data.religion);
+  sim.era.restore(data.era);
 
   // Ré-applique la saison du tick chargé, puis re-classifie.
   sim.reapplySeasonalOffset();

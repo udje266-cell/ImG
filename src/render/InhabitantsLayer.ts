@@ -1,12 +1,15 @@
 import {
   type BufferGeometry,
+  Color,
   DynamicDrawUsage,
   InstancedMesh,
   type Material,
+  type MeshStandardMaterial,
   Mesh,
   Object3D,
 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { Era } from "../sim/society/EraSystem";
 import type { Simulation } from "../sim/world/Simulation";
 import { groundHeightAt } from "./TerrainMesh";
 
@@ -14,6 +17,17 @@ import { groundHeightAt } from "./TerrainMesh";
 const AGENT_HEIGHT = 1.6;
 /** Plafond d'habitants rendus (budget d'instances). */
 const MAX_AGENTS = 4000;
+
+/**
+ * Teinte des habitants par ère : peaux ternes (Primitif) → étoffes plus riches
+ * (Bronze) → tons gris-acier vêtus/armés (Fer). Multiplie la texture du modèle.
+ */
+const ERA_TINT: Record<Era, number> = {
+  [Era.Primitive]: 0xd6c6b4,
+  [Era.Stone]: 0xe6dac2,
+  [Era.Bronze]: 0xf0d4ac,
+  [Era.Iron]: 0xd2d6e2,
+};
 
 /**
  * Rendu des habitants (docs/TDD.md §4.5, phase C) : un `InstancedMesh` par
@@ -45,6 +59,18 @@ export class InhabitantsLayer {
       mesh.count = 0;
       this.meshes.push(mesh);
       addToScene(mesh);
+    }
+    // Apparence de départ + ré-teinte à chaque changement d'ère.
+    this.applyEraTint(sim.era.era);
+    sim.bus.on("era:advanced", ({ era }) => this.applyEraTint(era as Era));
+  }
+
+  /** Teinte tous les modèles d'habitants selon l'ère (multiplie la texture). */
+  private applyEraTint(era: Era): void {
+    const hex = ERA_TINT[era] ?? 0xffffff;
+    for (const mesh of this.meshes) {
+      const mat = mesh.material as MeshStandardMaterial;
+      if (mat && (mat as { color?: Color }).color) mat.color = new Color(hex);
     }
   }
 

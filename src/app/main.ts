@@ -68,6 +68,9 @@ function boot(): void {
   sim.bus.on("settlements:founded", () => {
     hud.flash("Ta lignée fonde son premier village 🏡");
   });
+  sim.bus.on("era:advanced", ({ name, politics }) => {
+    hud.flash(`Ton peuple entre dans l'${name} — ${politics} 🏛️`);
+  });
   sim.bus.on("religion:priestOrdained", ({ village, doctrine }) => {
     hud.flash(`Un prêtre s'élève au village ${village + 1} — culte de la ${doctrine} 🙏`);
   });

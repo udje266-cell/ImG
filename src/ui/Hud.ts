@@ -63,8 +63,10 @@ export class Hud {
     this.sparkBar.style.width = `${(sim.spark.current / sim.spark.max) * 100}%`;
     this.devotionVal.textContent = String(Math.floor(sim.progression.devotion));
     this.populationVal.textContent = String(sim.agents.count);
+    const era = sim.era.info;
     this.clock.textContent =
-      `An ${clock.year + 1} · ${SEASON_LABELS[clock.season]} j${clock.dayOfSeason + 1} · ${hours}:${minutes}  ${speed}`;
+      `An ${clock.year + 1} · ${SEASON_LABELS[clock.season]} j${clock.dayOfSeason + 1} · ${hours}:${minutes}  ${speed}` +
+      `  ·  ${era.icon} ${era.name} · ${era.politics}`;
 
     if (performance.now() >= this.flashUntil) {
       this.flashEl.classList.remove("show");
