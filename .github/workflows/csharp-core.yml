@@ -1,0 +1,23 @@
+# Compile et teste le cœur de simulation C# (unity/ImG.Core) — le portage
+# Unity-ready. Les tests incluent des valeurs de référence extraites du jeu
+# TypeScript : ils garantissent que le port C# reste identique au jeu web.
+name: C# core tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["unity/**", ".github/workflows/csharp-core.yml"]
+  pull_request:
+    paths: ["unity/**", ".github/workflows/csharp-core.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Test ImG.Core
+        run: cd unity && dotnet test --nologo

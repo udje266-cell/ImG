@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Cœur de simulation, moteur-agnostique. Cible netstandard2.1 pour être
+    directement utilisable dans Unity (2021+) : déposer les .cs sous
+    Assets/ + un asmdef. Aucune dépendance externe, aucune API de rendu.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>10</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>ImG.Core</RootNamespace>
+    <AssemblyName>ImG.Core</AssemblyName>
+  </PropertyGroup>
+
+</Project>
