@@ -69,6 +69,13 @@ Le MVP (phases 0–1) doit prouver les fondations, pas empiler des features :
 - **Vie de village ✅** — *Naissances* : un habitant prospère (nourri, reposé) fonde une famille ; l'enfant naît au foyer, plafond `MAX_POPULATION`. *Expansion* : recensement périodique (`SettlementSystem.expand`, toutes les `SETTLEMENT_INTERVAL` ticks) qui bâtit de nouvelles huttes quand un village dépasse sa capacité (spirale poursuivie). *Champs* : parcelles cultivées semées fertiles en couronne des villages. *Feux de camp* : un par village, flamme animée + halo chaud qui porte la nuit (`SettlementLayer.update`). Sauvegarde v7 (migration v6 : huttes estimées).
 - À venir : professions, stocks, production/consommation, prix émergents, commerce inter-villages ; morts naturelles et générations.
 
+### Passe qualité visuelle 2 (✅) — techniques standard appliquées
+- **Nuit lisible (« day-for-night »)** : clair de lune directionnel froid opposé au soleil (sans ombres, budget mobile), ambiance nocturne relevée, ciel de nuit bleu profond au lieu de noir.
+- **Ciel vivant** : étoiles procédurales scintillantes (grille hashée sur le dôme), disque + halo de lune à l'opposé du soleil.
+- **Feu de camp réaliste** : cercle de pierres + rondins carbonisés, braises émissives pulsantes, flamme à deux couches en blending additif (enveloppe orange + cœur jaune-blanc), volutes de fumée cyclées, lumière chaude vacillante (deux fréquences décorrélées).
+- **Eau nocturne** : l'éclat spéculaire bascule du soleil à la lune sous l'horizon.
+- À venir (qualité) : bloom sélectif (post-processing léger), particules (pluie/neige/feuilles), impostors LOD pour forêts denses, audio (ambiances jour/nuit, feu).
+
 ### Phase 6 — Religions dynamiques
 - **Moteur d'interprétation** : les peuples ne voient jamais la divinité, ils interprètent les événements (pluie = bénédiction, volcan = colère, éclipse = présage — cahier des charges §6) selon leur culture ; mémoire des interventions transmise en récits.
 - Témoins de miracles → récits → dogmes ; ferveur, prêtres, temples, sacrifices, schismes, conversions ; dieux rivaux simulés.

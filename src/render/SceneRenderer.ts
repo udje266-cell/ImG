@@ -28,12 +28,16 @@ import { TerrainMesh } from "./TerrainMesh";
 import { WeatherLayer } from "./WeatherLayer";
 
 const DAY_SKY = new Color("#8ec7ef");
-const NIGHT_SKY = new Color("#0b1026");
+// Nuit « cinéma » (day-for-night) : bleu lunaire profond mais lisible,
+// jamais noir — le monde reste déchiffrable, les feux restent des accents.
+const NIGHT_SKY = new Color("#1c2650");
 const DUSK_SKY = new Color("#e8a878");
 const GROUND_BOUNCE = new Color("#8a7a55"); // lumière rebondie chaude du sol
+const MOONLIGHT = new Color("#a9bfff"); // clair de lune bleuté
 
 const DAY_SUN_INTENSITY = 3.1;
-const NIGHT_HEMI = 0.12;
+const NIGHT_HEMI = 0.34;
+const MOON_INTENSITY = 0.55;
 
 /**
  * 3D scene orchestrator (docs/TDD.md §4.5): owns the WebGL renderer, the
@@ -46,6 +50,7 @@ export class SceneRenderer {
   private readonly renderer: WebGLRenderer;
   private readonly scene = new Scene();
   private readonly sun: DirectionalLight;
+  private readonly moon: DirectionalLight;
   private readonly hemi: HemisphereLight;
   private readonly fog: Fog;
   private readonly terrainMesh: TerrainMesh;
@@ -53,6 +58,7 @@ export class SceneRenderer {
   private readonly sky: Sky;
   private readonly weatherLayer: WeatherLayer;
   private readonly sunDir = new Vector3();
+  private readonly moonDir = new Vector3();
   private readonly brushRing: Mesh;
   private readonly raycaster = new Raycaster();
   private readonly pointerNdc = new Vector2();
@@ -123,6 +129,12 @@ export class SceneRenderer {
     // Lumière hémisphérique : ciel froid en haut, rebond chaud du sol en bas.
     this.hemi = new HemisphereLight(DAY_SKY.getHex(), GROUND_BOUNCE.getHex(), 0.9);
     this.scene.add(this.hemi);
+
+    // Clair de lune : directionnelle froide opposée au soleil, sans ombres
+    // (budget mobile) — la nuit reste lisible, jamais noire (day-for-night).
+    this.moon = new DirectionalLight(MOONLIGHT, 0);
+    this.moon.target.position.set(width / 2, 0, height / 2);
+    this.scene.add(this.moon, this.moon.target);
 
     this.brushRing = new Mesh(
       new RingGeometry(0.85, 1, 48),
@@ -249,16 +261,30 @@ export class SceneRenderer {
     this.sun.intensity = DAY_SUN_INTENSITY * Math.max(0.02, daylight) ** 1.1;
     this.hemi.intensity = NIGHT_HEMI + 0.85 * daylight;
 
+    // Lune : à l'opposé du soleil, ne porte que la nuit (bleu argenté doux).
+    const night = 1 - daylight;
+    this.moon.position.set(
+      this.moon.target.position.x - Math.cos(angle) * radius,
+      -elevation * radius,
+      this.moon.target.position.z + radius * 0.35,
+    );
+    this.moon.intensity = MOON_INTENSITY * night * night;
+
     // Ciel : nuit → aube dorée → plein jour, et la brume s'y accorde.
     this.skyColor.copy(NIGHT_SKY).lerp(DAY_SKY, daylight);
     if (daylight > 0.05) this.skyColor.lerp(DUSK_SKY, lowSun * 0.5 * daylight);
     this.scene.background = this.skyColor;
     this.fog.color.copy(this.skyColor);
 
-    // Eau animée : avance l'ondulation et oriente l'éclat sur le soleil courant.
+    // Eau animée : l'éclat suit le soleil le jour, la lune la nuit.
     this.sunDir.copy(this.sun.position).sub(this.sun.target.position);
-    this.water.update(now / 1000, this.sunDir, this.sun.color);
-    this.sky.update(this.skyColor, this.sun.color, this.sunDir);
+    if (elevation > 0.04) {
+      this.water.update(now / 1000, this.sunDir, this.sun.color);
+    } else {
+      this.moonDir.copy(this.moon.position).sub(this.moon.target.position);
+      this.water.update(now / 1000, this.moonDir, MOONLIGHT);
+    }
+    this.sky.update(this.skyColor, this.sun.color, this.sunDir, night, now / 1000);
 
     this.weatherLayer.update();
     this.forest?.refresh();

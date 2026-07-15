@@ -1,4 +1,5 @@
 import {
+  AdditiveBlending,
   BoxGeometry,
   BufferAttribute,
   type BufferGeometry,
@@ -9,9 +10,11 @@ import {
   InstancedMesh,
   Mesh,
   MeshBasicMaterial,
+  MeshLambertMaterial,
   MeshStandardMaterial,
   type Object3D,
   PointLight,
+  SphereGeometry,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { Simulation } from "../sim/world/Simulation";
@@ -91,7 +94,7 @@ function makeFieldGeometry(): BufferGeometry {
   return mergeGeometries(parts, false)!;
 }
 
-/** Feu de camp : rondins croisés + pierre du foyer (la flamme est à part). */
+/** Feu de camp : rondins croisés + cercle de pierres du foyer. */
 function makeCampfireBase(): BufferGeometry {
   const parts: BufferGeometry[] = [];
   for (let i = 0; i < 3; i++) {
@@ -99,8 +102,31 @@ function makeCampfireBase(): BufferGeometry {
     log.rotateZ(Math.PI / 2.3);
     log.rotateY((i / 3) * Math.PI);
     log.translate(0, 0.12, 0);
-    paint(log, 0x5c3f26); // rondins
+    paint(log, 0x4a3018); // rondins carbonisés
     parts.push(log);
+  }
+  // Cercle de pierres — signe universel du foyer entretenu.
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2;
+    const stone = new BoxGeometry(0.16, 0.12, 0.13);
+    stone.rotateY(a + 0.4);
+    stone.translate(Math.cos(a) * 0.52, 0.05, Math.sin(a) * 0.52);
+    paint(stone, i % 2 === 0 ? 0x8d8578 : 0x7a7266); // granit
+    parts.push(stone);
+  }
+  return mergeGeometries(parts, false)!;
+}
+
+/** Braises : petit amas de charbons au cœur du foyer (matériau émissif à part). */
+function makeEmbersGeometry(): BufferGeometry {
+  const parts: BufferGeometry[] = [];
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + 0.7;
+    const r = 0.08 + (i % 2) * 0.07;
+    const coal = new BoxGeometry(0.09, 0.06, 0.08);
+    coal.rotateY(a * 1.7);
+    coal.translate(Math.cos(a) * r, 0.1, Math.sin(a) * r);
+    parts.push(coal);
   }
   return mergeGeometries(parts, false)!;
 }
@@ -109,10 +135,15 @@ export class SettlementLayer {
   private readonly huts: InstancedMesh;
   private readonly totems: InstancedMesh;
   private readonly fieldsMesh: InstancedMesh;
-  /** Feux de camp (un par village) : flammes à animer + lumières nocturnes. */
+  /** Feux de camp (un par village) : flammes, braises, fumée et lumière. */
   private readonly fires = new Group();
-  private readonly flames: Mesh[] = [];
-  private readonly lights: PointLight[] = [];
+  private readonly firesAnim: Array<{
+    outer: Mesh;
+    inner: Mesh;
+    embers: MeshBasicMaterial;
+    smokes: Mesh[];
+    light: PointLight;
+  }> = [];
   private readonly dummy = new Group();
 
   constructor(
@@ -180,15 +211,20 @@ export class SettlementLayer {
     this.buildCampfires();
   }
 
-  /** Un feu de camp par village, à côté du totem (rebâti avec les villages). */
+  /**
+   * Un feu de camp par village, à côté du totem (rebâti avec les villages).
+   * Anatomie réaliste : cercle de pierres + rondins carbonisés, braises
+   * émissives pulsantes, flamme à DEUX couches en blending additif (enveloppe
+   * orange + cœur jaune-blanc, comme un vrai feu), volutes de fumée qui
+   * montent et se dissipent, et lumière chaude vacillante.
+   */
   private buildCampfires(): void {
     this.fires.clear();
-    this.flames.length = 0;
-    this.lights.length = 0;
+    this.firesAnim.length = 0;
     const terrain = this.sim.terrain;
     const baseGeo = makeCampfireBase();
+    const embersGeo = makeEmbersGeometry();
     const baseMat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true });
-    const flameMat = new MeshBasicMaterial({ color: 0xffa63d, transparent: true, opacity: 0.92 });
 
     for (const v of this.sim.settlements.villages.slice(0, MAX_TOTEMS)) {
       // Décalé du totem pour former la place du village.
@@ -203,30 +239,95 @@ export class SettlementLayer {
       base.castShadow = true;
       fire.add(base);
 
-      const flame = new Mesh(new ConeGeometry(0.16, 0.5, 6), flameMat);
-      flame.position.y = 0.32;
-      fire.add(flame);
-      this.flames.push(flame);
+      // Braises : orange profond qui pulse (matériau propre à chaque feu).
+      const embersMat = new MeshBasicMaterial({ color: 0xff5a1f });
+      fire.add(new Mesh(embersGeo, embersMat));
 
-      // Halo chaud : discret le jour, phare du village la nuit.
-      const light = new PointLight(0xff9c4a, 0, 9, 2);
-      light.position.y = 0.6;
+      // Flamme externe (enveloppe orange, additive → lueur photogénique).
+      const outer = new Mesh(
+        new ConeGeometry(0.2, 0.62, 7),
+        new MeshBasicMaterial({
+          color: 0xff7a26,
+          transparent: true,
+          opacity: 0.75,
+          blending: AdditiveBlending,
+          depthWrite: false,
+        }),
+      );
+      outer.position.y = 0.42;
+      fire.add(outer);
+
+      // Cœur de flamme (jaune-blanc, plus court et plus vif).
+      const inner = new Mesh(
+        new ConeGeometry(0.1, 0.38, 6),
+        new MeshBasicMaterial({
+          color: 0xffe9a3,
+          transparent: true,
+          opacity: 0.95,
+          blending: AdditiveBlending,
+          depthWrite: false,
+        }),
+      );
+      inner.position.y = 0.34;
+      fire.add(inner);
+
+      // Volutes de fumée : trois sphères qui montent en boucle, éclairées par
+      // la scène (Lambert) donc sombres la nuit, teintées par le feu en dessous.
+      const smokes: Mesh[] = [];
+      for (let s = 0; s < 3; s++) {
+        const smoke = new Mesh(
+          new SphereGeometry(0.11, 6, 5),
+          new MeshLambertMaterial({ color: 0x8f959d, transparent: true, opacity: 0.3, depthWrite: false }),
+        );
+        fire.add(smoke);
+        smokes.push(smoke);
+      }
+
+      // Halo chaud : braise le jour, phare du village la nuit.
+      const light = new PointLight(0xff8b3d, 0, 10, 2);
+      light.position.y = 0.7;
       fire.add(light);
-      this.lights.push(light);
 
       this.fires.add(fire);
+      this.firesAnim.push({ outer, inner, embers: embersMat, smokes, light });
     }
   }
 
-  /** Anime flammes (danse) et lumières (fortes la nuit) — chaque frame. */
+  /** Anime flammes, braises, fumée et lumières — chaque frame. */
   update(timeSeconds: number, daylight: number): void {
     const night = 1 - daylight;
-    for (let i = 0; i < this.flames.length; i++) {
+    for (let i = 0; i < this.firesAnim.length; i++) {
+      const f = this.firesAnim[i]!;
+      // Vacillement organique : deux fréquences décorrélées + phase par feu.
       const flicker =
-        0.85 + 0.11 * Math.sin(timeSeconds * 11 + i * 2.1) + 0.06 * Math.sin(timeSeconds * 23 + i);
-      const flame = this.flames[i]!;
-      flame.scale.set(flicker, flicker * (1 + 0.18 * Math.sin(timeSeconds * 17 + i * 3.7)), flicker);
-      this.lights[i]!.intensity = (1.2 + 10 * night) * flicker;
+        0.82 + 0.12 * Math.sin(timeSeconds * 13 + i * 2.7) + 0.06 * Math.sin(timeSeconds * 29 + i * 1.3);
+
+      f.outer.scale.set(flicker, 1 + 0.24 * Math.sin(timeSeconds * 17 + i * 3.7), flicker);
+      f.outer.rotation.y = timeSeconds * 1.6 + i;
+      const innerFlick = 0.85 + 0.15 * Math.sin(timeSeconds * 31 + i * 4.3);
+      f.inner.scale.set(innerFlick, 1 + 0.3 * Math.sin(timeSeconds * 23 + i * 1.9), innerFlick);
+      f.inner.rotation.y = -timeSeconds * 2.2 + i;
+
+      // Braises : rougeoiement lent entre orange sombre et vif.
+      const glow = 0.55 + 0.45 * Math.sin(timeSeconds * 5 + i * 2.2) ** 2;
+      f.embers.color.setRGB(1, 0.22 + 0.2 * glow, 0.05 + 0.08 * glow);
+
+      // Fumée : cycle vertical continu, s'élargit et s'estompe en montant.
+      for (let s = 0; s < f.smokes.length; s++) {
+        const cycle = (timeSeconds * 0.28 + s / f.smokes.length + i * 0.13) % 1;
+        const smoke = f.smokes[s]!;
+        smoke.position.set(
+          0.06 * Math.sin(timeSeconds * 1.1 + s * 2.4 + i), // dérive du vent
+          0.55 + cycle * 1.5,
+          0.05 * Math.cos(timeSeconds * 0.9 + s * 1.7),
+        );
+        const grow = 0.7 + cycle * 1.8;
+        smoke.scale.setScalar(grow);
+        (smoke.material as MeshLambertMaterial).opacity = 0.32 * (1 - cycle) * (0.5 + 0.5 * night);
+      }
+
+      // Lumière : chaleur discrète le jour, halo puissant la nuit.
+      f.light.intensity = (1.4 + 9.5 * night) * flicker;
     }
   }
 
