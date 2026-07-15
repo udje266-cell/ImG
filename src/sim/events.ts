@@ -9,7 +9,7 @@ import type { PowerId, PowerInvocation } from "./powers/Power";
  * - `intent:*` for player intents published by the UI; the simulation is the
  *   only layer allowed to act on them.
  */
-export type PowerRejectionReason = "insufficient-faith" | "unknown-power" | "locked";
+export type PowerRejectionReason = "insufficient-faith" | "insufficient-spark" | "unknown-power" | "locked";
 
 export type GameEvents = {
   "time:dayStarted": { day: number };

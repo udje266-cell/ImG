@@ -1,4 +1,5 @@
 import { POWER_CATALOG, type PowerMeta, SCHOOLS } from "../sim/powers/catalog";
+import { SPARK_COSTS } from "../sim/powers/SparkSystem";
 import type { Simulation } from "../sim/world/Simulation";
 
 /**
@@ -90,16 +91,18 @@ export class Grimoire {
     chip.dataset.key = meta.key;
 
     let stateText: string;
+    const spark = meta.power ? (SPARK_COSTS[meta.power] ?? 0) : 0;
+    const sparkTag = spark > 0 ? ` · ⚡${spark}` : "";
     if (meta.power === null) {
       chip.classList.add("soon");
       stateText = "À venir";
     } else if (this.available(meta)) {
       chip.classList.add("available");
-      stateText = "Disponible";
+      stateText = `Disponible${sparkTag}`;
       chip.addEventListener("click", () => this.select(meta.key));
     } else {
       chip.classList.add("locked");
-      stateText = `🔒 Dévotion ${meta.unlock}`;
+      stateText = `🔒 Dévotion ${meta.unlock}${sparkTag}`;
     }
 
     chip.innerHTML =

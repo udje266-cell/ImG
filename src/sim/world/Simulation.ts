@@ -21,6 +21,7 @@ import {
 } from "../powers/PlaguePowers";
 import { BeckonPower, SpawnHerdPower } from "../powers/InfluencePowers";
 import { PowerSystem } from "../powers/PowerSystem";
+import { SparkSystem } from "../powers/SparkSystem";
 import { ProgressionSystem } from "../powers/ProgressionSystem";
 import { RainPower } from "../powers/RainPower";
 import { TerraformPower } from "../powers/TerraformPower";
@@ -59,6 +60,7 @@ export class Simulation {
   readonly rng: Rng;
   readonly terrain: TerrainGrid;
   readonly faith: FaithSystem;
+  readonly spark: SparkSystem;
   readonly powers: PowerSystem;
   readonly progression: ProgressionSystem;
   readonly weather: WeatherSystem;
@@ -81,6 +83,7 @@ export class Simulation {
     };
     this.terrain = generateWorld(this.worldConfig);
     this.faith = new FaithSystem(config.faith);
+    this.spark = new SparkSystem();
     this.progression = new ProgressionSystem(this.bus);
     this.powers = new PowerSystem(this.bus);
     this.powers.register(new TerraformPower());
@@ -122,7 +125,13 @@ export class Simulation {
     // Tick order matters and is explicit (docs/UML.md §3).
     this.scheduler = new Scheduler<Simulation>(config.now);
     this.scheduler.add({ id: "powers", update: (sim) => sim.powers.step(sim) });
-    this.scheduler.add({ id: "faith", update: (sim) => sim.faith.update() });
+    this.scheduler.add({
+      id: "faith",
+      update: (sim) => {
+        sim.faith.update();
+        sim.spark.update();
+      },
+    });
     this.scheduler.add({
       id: "weather",
       interval: WEATHER_INTERVAL,
