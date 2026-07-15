@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21 # les plugins Android de Capacitor 7 compilent en Java 21
 
       - name: Install dependencies
         run: npm ci
