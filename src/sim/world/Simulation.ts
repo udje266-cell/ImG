@@ -2,7 +2,7 @@ import { World } from "../../core/ecs/World";
 import { Scheduler } from "../../core/ecs/Scheduler";
 import { EventBus } from "../../core/events/EventBus";
 import { Rng } from "../../core/math/Rng";
-import { GameClock } from "../../core/time/GameClock";
+import { GameClock, TICKS_PER_DAY } from "../../core/time/GameClock";
 import type { GameEvents } from "../events";
 import { FaithSystem, type FaithConfig } from "../powers/FaithSystem";
 import { FlattenPower } from "../powers/FlattenPower";
@@ -28,6 +28,7 @@ import { TerraformPower } from "../powers/TerraformPower";
 import type { TerrainGrid } from "../terrain/TerrainGrid";
 import { AgentSystem } from "../agents/AgentSystem";
 import { RELIGION_INTERVAL, ReligionSystem } from "../religion/ReligionSystem";
+import { DivineMemory } from "../society/DivineMemory";
 import { ERA_INTERVAL, EraSystem } from "../society/EraSystem";
 import { SettlementSystem } from "../society/SettlementSystem";
 import { FaunaSystem } from "../ecology/FaunaSystem";
@@ -73,6 +74,7 @@ export class Simulation {
   readonly settlements: SettlementSystem;
   readonly religion: ReligionSystem;
   readonly era: EraSystem;
+  readonly divineMemory: DivineMemory;
   /** Config effective du monde — nécessaire à la sauvegarde (seed + deltas). */
   readonly worldConfig: { seed: number; width: number; height: number; seaLevel: number };
   private readonly scheduler: Scheduler<Simulation>;
@@ -118,6 +120,7 @@ export class Simulation {
     this.settlements = new SettlementSystem(this.terrain, this.rng);
     this.religion = new ReligionSystem(this.settlements, this.agents, this.bus);
     this.era = new EraSystem(this.bus);
+    this.divineMemory = new DivineMemory(this.bus, this.clock);
     this.applySeasonalOffset();
     this.flora.setSeason(this.clock.season);
 
@@ -166,6 +169,16 @@ export class Simulation {
       interval: RELIGION_INTERVAL,
       update: (sim) => {
         sim.faith.add(sim.religion.update());
+      },
+    });
+    // Mémoire divine : le peuple se souvient des hauts faits du dieu. Une fois
+    // par jour, la mémoire s'estompe un peu et la révérence accumulée rayonne
+    // une Foi passive (on prie le dieu dont on garde bon souvenir).
+    this.scheduler.add({
+      id: "divineMemory",
+      interval: TICKS_PER_DAY,
+      update: (sim) => {
+        sim.faith.add(sim.divineMemory.fade());
       },
     });
     // Ères technologiques : le Savoir s'accumule avec la population, les

@@ -42,7 +42,7 @@ const TEMPLE_FAITH = 2.2;
 export type MiracleNature = "bienfait" | "courroux" | "prodige";
 
 /** Interprétation de chaque pouvoir (les écoles parlent d'elles-mêmes). */
-const POWER_NATURE: Record<PowerId, MiracleNature> = {
+export const POWER_NATURE: Record<PowerId, MiracleNature> = {
   growth: "bienfait",
   rain: "bienfait",
   abundance: "bienfait",
