@@ -1,12 +1,14 @@
 import {
   BoxGeometry,
+  Box3,
   BufferAttribute,
-  type BufferGeometry,
+  BufferGeometry,
   Color,
   ConeGeometry,
   CylinderGeometry,
   DynamicDrawUsage,
   InstancedMesh,
+  Matrix4,
   MeshStandardMaterial,
   Object3D,
   SphereGeometry,
@@ -32,6 +34,8 @@ const BOB_AMP = 0.05; // rebond vertical (unités monde) en marchant
 const LEAN = 0.13; // inclinaison avant en marchant (radians)
 const SWAY = 0.09; // roulis gauche/droite en marchant (radians)
 const IDLE_BOB = 0.009; // respiration au repos
+const ARM_SWING = 0.62; // amplitude du balancement des bras (radians)
+const LEG_SWING = 0.5; // amplitude du balancement des jambes (radians)
 /** Deux silhouettes par ère (jambes / robe) pour que la foule ne soit pas clonée. */
 const VARIANTS = 2;
 /** Teint de peau (partagé). */
@@ -74,6 +78,14 @@ function paintGeo(geo: BufferGeometry, hex: number): BufferGeometry {
   }
   geo.setAttribute("color", new BufferAttribute(colors, 3));
   return geo;
+}
+
+/** Géométrie vide (maillage de jambe absent pour les silhouettes en robe). */
+function emptyGeo(): BufferGeometry {
+  const g = new BufferGeometry();
+  g.setAttribute("position", new BufferAttribute(new Float32Array(0), 3));
+  g.setAttribute("color", new BufferAttribute(new Float32Array(0), 3));
+  return g;
 }
 
 /** Coiffe compacte par ère, posée sur une tête centrée à `yHead` (rayon ~0.085). */
@@ -126,89 +138,140 @@ function addHat(
   }
 }
 
-/**
- * Villageois procédural de l'ère (unités monde, pieds à y=0, hauteur ~0.8).
- * Corps low-poly + tenue et coiffe propres à l'époque + (variante) jambes ou
- * robe. Couleurs cuites en couleurs de sommets → un seul matériau instancié.
- */
-function makeVillager(era: Era, variant: number): BufferGeometry {
-  const parts: BufferGeometry[] = [];
-  const add = (g: BufferGeometry, hex: number, tf?: (g: BufferGeometry) => void): void => {
-    if (tf) tf(g);
-    paintGeo(g, hex);
-    parts.push(g);
-  };
-  const look = LOOK[era];
-  const robe = look.robe || variant === 1;
-
-  // Bas du corps : robe évasée (couleur du vêtement) ou deux jambes.
-  if (robe) {
-    add(new ConeGeometry(0.145, 0.4, 10), look.coat, (g) => g.translate(0, 0.2, 0));
-  } else {
-    for (const sx of [-1, 1]) {
-      add(new BoxGeometry(0.075, 0.34, 0.095), look.legs, (g) => g.translate(sx * 0.06, 0.17, 0));
-    }
-  }
-  // Buste (évasé vers le bas) dans la couleur de la tenue.
-  add(new CylinderGeometry(0.1, 0.135, 0.28, 8), look.coat, (g) => g.translate(0, 0.46, 0));
-  // Épaules un peu plus larges au futur/interplanétaire (tenue technique).
-  if (era === Era.Interplanetary || era === Era.Future) {
-    add(new CylinderGeometry(0.14, 0.14, 0.1, 10), look.coat, (g) => g.translate(0, 0.56, 0));
-  }
-  // Bras le long du corps + mains (peau).
-  for (const sx of [-1, 1]) {
-    add(new BoxGeometry(0.052, 0.26, 0.07), look.coat, (g) => {
-      g.rotateZ(sx * 0.06);
-      g.translate(sx * 0.155, 0.46, 0);
-    });
-    add(new BoxGeometry(0.05, 0.05, 0.06), SKIN, (g) => g.translate(sx * 0.17, 0.33, 0));
-  }
-  // Cou + tête (peau).
-  add(new CylinderGeometry(0.03, 0.03, 0.04, 6), SKIN, (g) => g.translate(0, 0.6, 0));
-  const yHead = 0.66;
-  add(new SphereGeometry(0.085, 10, 8), SKIN, (g) => g.translate(0, yHead, 0));
-  // Yeux : deux petits points sombres sur la face avant (+Z = direction de marche).
-  for (const sx of [-1, 1]) {
-    add(new BoxGeometry(0.02, 0.026, 0.018), 0x241d16, (g) => g.translate(sx * 0.031, yHead + 0.004, 0.077));
-  }
-  // Lance des ères de chasse/guerre (tenue dans la main droite).
-  if (era === Era.Stone || era === Era.Bronze || era === Era.Iron) {
-    add(new CylinderGeometry(0.011, 0.011, 0.62, 6), 0x6b4a2a, (g) => { g.rotateX(-0.1); g.translate(0.205, 0.34, 0); });
-    add(new ConeGeometry(0.028, 0.09, 6), era === Era.Stone ? 0x8f8378 : 0xb87333, (g) => { g.rotateX(-0.1); g.translate(0.205, 0.67, 0); });
-  }
-  // Coiffe/casque de l'ère.
-  addHat(era, add, yHead);
-
-  const geo = mergeGeometries(parts, false)!;
-  // Normalise à AGENT_HEIGHT (pieds à y=0) : hauteur identique à toutes les ères,
-  // toujours plus basse que les maisons, quelle que soit la coiffe.
-  geo.computeBoundingBox();
-  const box = geo.boundingBox!;
-  const h = box.max.y - box.min.y || 1;
-  const s = AGENT_HEIGHT / h;
-  geo.translate(0, -box.min.y, 0);
-  geo.scale(s, s, s);
-  return geo;
+/** Pivots d'articulation (épaules, hanches) d'un villageois, en unités monde. */
+interface Pivots {
+  armL: [number, number, number];
+  armR: [number, number, number];
+  legL: [number, number, number];
+  legR: [number, number, number];
+}
+/** Parties articulées d'un villageois : tronc + membres séparés (+ pivots). */
+interface VillagerParts {
+  body: BufferGeometry;
+  armL: BufferGeometry;
+  armR: BufferGeometry;
+  legL: BufferGeometry | null; // null pour les silhouettes en robe
+  legR: BufferGeometry | null;
+  pivots: Pivots;
 }
 
 /**
- * Rendu des habitants (docs/TDD.md §4.5, phase C) : villageois **procéduraux
- * par ère** (aucun modèle externe), un `InstancedMesh` par silhouette, orientés
- * chaque frame vers leur direction de marche depuis le snapshot du
- * `AgentSystem`. Les tenues et coiffes se reconstruisent à chaque changement
- * d'ère (l'apparence évolue avec l'âge). Lecture seule de la simulation.
+ * Construit un villageois de l'ère en **parties articulées** : tronc (torse,
+ * tête, coiffe, robe éventuelle), bras gauche/droit et jambes gauche/droite
+ * séparés, chacun avec son pivot (épaule/hanche) pour balancer à la marche.
+ * Toutes les parties sont normalisées ensemble (pieds à y=0, hauteur
+ * AGENT_HEIGHT). La lance des ères de chasse est attachée au bras droit (elle
+ * se balance avec lui).
+ */
+function buildVillager(era: Era, variant: number): VillagerParts {
+  const look = LOOK[era];
+  const robe = look.robe || variant === 1;
+  const bodyG: BufferGeometry[] = [];
+  const armLG: BufferGeometry[] = [];
+  const armRG: BufferGeometry[] = [];
+  const legLG: BufferGeometry[] = [];
+  const legRG: BufferGeometry[] = [];
+  const to = (arr: BufferGeometry[]) => (g: BufferGeometry, hex: number, tf?: (g: BufferGeometry) => void): void => {
+    if (tf) tf(g);
+    paintGeo(g, hex);
+    arr.push(g);
+  };
+  const body = to(bodyG);
+
+  // Bas du corps : robe évasée (dans le tronc) OU deux jambes articulées.
+  if (robe) {
+    body(new ConeGeometry(0.145, 0.4, 10), look.coat, (g) => g.translate(0, 0.2, 0));
+  } else {
+    to(legLG)(new BoxGeometry(0.075, 0.34, 0.095), look.legs, (g) => g.translate(-0.06, 0.17, 0));
+    to(legRG)(new BoxGeometry(0.075, 0.34, 0.095), look.legs, (g) => g.translate(0.06, 0.17, 0));
+  }
+  // Buste + épaules techniques (tronc).
+  body(new CylinderGeometry(0.1, 0.135, 0.28, 8), look.coat, (g) => g.translate(0, 0.46, 0));
+  if (era === Era.Interplanetary || era === Era.Future) {
+    body(new CylinderGeometry(0.14, 0.14, 0.1, 10), look.coat, (g) => g.translate(0, 0.56, 0));
+  }
+  // Bras gauche / droit (+ mains) — parties séparées, pivot à l'épaule.
+  to(armLG)(new BoxGeometry(0.052, 0.26, 0.07), look.coat, (g) => { g.rotateZ(0.06); g.translate(-0.155, 0.46, 0); });
+  to(armLG)(new BoxGeometry(0.05, 0.05, 0.06), SKIN, (g) => g.translate(-0.17, 0.33, 0));
+  to(armRG)(new BoxGeometry(0.052, 0.26, 0.07), look.coat, (g) => { g.rotateZ(-0.06); g.translate(0.155, 0.46, 0); });
+  to(armRG)(new BoxGeometry(0.05, 0.05, 0.06), SKIN, (g) => g.translate(0.17, 0.33, 0));
+  // Lance des ères de chasse/guerre — attachée au bras droit.
+  if (era === Era.Stone || era === Era.Bronze || era === Era.Iron) {
+    to(armRG)(new CylinderGeometry(0.011, 0.011, 0.62, 6), 0x6b4a2a, (g) => { g.rotateX(-0.1); g.translate(0.205, 0.34, 0); });
+    to(armRG)(new ConeGeometry(0.028, 0.09, 6), era === Era.Stone ? 0x8f8378 : 0xb87333, (g) => { g.rotateX(-0.1); g.translate(0.205, 0.67, 0); });
+  }
+  // Cou + tête + yeux + coiffe (tronc).
+  body(new CylinderGeometry(0.03, 0.03, 0.04, 6), SKIN, (g) => g.translate(0, 0.6, 0));
+  const yHead = 0.66;
+  body(new SphereGeometry(0.085, 10, 8), SKIN, (g) => g.translate(0, yHead, 0));
+  for (const sx of [-1, 1]) {
+    body(new BoxGeometry(0.02, 0.026, 0.018), 0x241d16, (g) => g.translate(sx * 0.031, yHead + 0.004, 0.077));
+  }
+  addHat(era, body, yHead);
+
+  const bodyGeo = mergeGeometries(bodyG, false)!;
+  const armLGeo = mergeGeometries(armLG, false)!;
+  const armRGeo = mergeGeometries(armRG, false)!;
+  const legLGeo = robe ? null : mergeGeometries(legLG, false)!;
+  const legRGeo = robe ? null : mergeGeometries(legRG, false)!;
+
+  // Normalisation commune : pieds à y=0, hauteur = AGENT_HEIGHT.
+  const all = [bodyGeo, armLGeo, armRGeo, legLGeo, legRGeo].filter((g): g is BufferGeometry => g !== null);
+  const box = new Box3();
+  for (const g of all) {
+    g.computeBoundingBox();
+    box.union(g.boundingBox!);
+  }
+  const h = box.max.y - box.min.y || 1;
+  const s = AGENT_HEIGHT / h;
+  const yMin = box.min.y;
+  for (const g of all) {
+    g.translate(0, -yMin, 0);
+    g.scale(s, s, s);
+  }
+  const norm = (x: number, y: number, z: number): [number, number, number] => [x * s, (y - yMin) * s, z * s];
+  const pivots: Pivots = {
+    armL: norm(-0.155, 0.58, 0),
+    armR: norm(0.155, 0.58, 0),
+    legL: norm(-0.06, 0.34, 0),
+    legR: norm(0.06, 0.34, 0),
+  };
+  return { body: bodyGeo, armL: armLGeo, armR: armRGeo, legL: legLGeo, legR: legRGeo, pivots };
+}
+
+/** Gréement instancié d'une silhouette : tronc + 4 membres + pivots + présence de jambes. */
+interface VariantRig {
+  body: InstancedMesh;
+  armL: InstancedMesh;
+  armR: InstancedMesh;
+  legL: InstancedMesh;
+  legR: InstancedMesh;
+  pivots: Pivots;
+  hasLegs: boolean;
+}
+
+/**
+ * Rendu des habitants (docs/TDD.md §4.5, phase C) : villageois **procéduraux et
+ * articulés par ère** (aucun modèle externe). Chaque silhouette est un jeu de
+ * maillages instanciés (tronc + bras + jambes) ; à la marche, bras et jambes se
+ * **balancent en opposition** autour de leurs pivots, cadencés par la foulée.
+ * Tenues et coiffes se reconstruisent à chaque changement d'ère. Lecture seule.
  */
 export class InhabitantsLayer {
-  private readonly meshes: InstancedMesh[] = [];
+  private readonly rigs: VariantRig[] = [];
   private readonly dummy = new Object3D();
   // Orientation « naturelle » : chaque habitant regarde là où il marche, et
-  // tourne en douceur (pas de virage instantané). Suivi de la vitesse par index.
+  // tourne en douceur. Suivi de la vitesse et de la foulée par index.
   private readonly heading = new Float32Array(MAX_AGENTS);
   private readonly prevX = new Float32Array(MAX_AGENTS);
   private readonly prevY = new Float32Array(MAX_AGENTS);
-  /** Phase de foulée par habitant (avance avec la distance marchée). */
   private readonly stridePhase = new Float32Array(MAX_AGENTS);
   private primed = false;
+  // Matrices de travail pour composer la rotation d'un membre autour de son pivot.
+  private readonly mLocal = new Matrix4();
+  private readonly mRot = new Matrix4();
+  private readonly mTmp = new Matrix4();
+  private readonly mLimb = new Matrix4();
 
   constructor(
     private readonly sim: Simulation,
@@ -216,38 +279,73 @@ export class InhabitantsLayer {
   ) {
     const mat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.85, flatShading: true });
     for (let v = 0; v < VARIANTS; v++) {
-      const mesh = new InstancedMesh(makeVillager(sim.era.era, v), mat, MAX_AGENTS);
-      mesh.instanceMatrix.setUsage(DynamicDrawUsage);
-      mesh.frustumCulled = false;
-      mesh.castShadow = true;
-      mesh.count = 0;
-      this.meshes.push(mesh);
-      addToScene(mesh);
+      const parts = buildVillager(this.sim.era.era, v);
+      const mk = (geo: BufferGeometry): InstancedMesh => {
+        const mesh = new InstancedMesh(geo, mat, MAX_AGENTS);
+        mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+        mesh.frustumCulled = false;
+        mesh.castShadow = true;
+        mesh.count = 0;
+        addToScene(mesh);
+        return mesh;
+      };
+      this.rigs.push({
+        body: mk(parts.body),
+        armL: mk(parts.armL),
+        armR: mk(parts.armR),
+        legL: mk(parts.legL ?? emptyGeo()),
+        legR: mk(parts.legR ?? emptyGeo()),
+        pivots: parts.pivots,
+        hasLegs: parts.legL !== null,
+      });
     }
-    // Changement d'ère : les tenues et coiffes se reconstruisent.
-    sim.bus.on("era:advanced", ({ era }) => {
-      for (let v = 0; v < this.meshes.length; v++) {
-        this.meshes[v]!.geometry.dispose();
-        this.meshes[v]!.geometry = makeVillager(era as Era, v);
-      }
-    });
+    sim.bus.on("era:advanced", ({ era }) => this.rebuild(era as Era));
   }
 
-  /** Repositionne et **anime** les instances depuis le snapshot des agents. */
+  /** Reconstruit les tenues/silhouettes de toutes les variantes pour l'ère. */
+  private rebuild(era: Era): void {
+    for (let v = 0; v < this.rigs.length; v++) {
+      const rig = this.rigs[v]!;
+      const parts = buildVillager(era, v);
+      rig.body.geometry.dispose();
+      rig.body.geometry = parts.body;
+      rig.armL.geometry.dispose();
+      rig.armL.geometry = parts.armL;
+      rig.armR.geometry.dispose();
+      rig.armR.geometry = parts.armR;
+      rig.legL.geometry.dispose();
+      rig.legL.geometry = parts.legL ?? emptyGeo();
+      rig.legR.geometry.dispose();
+      rig.legR.geometry = parts.legR ?? emptyGeo();
+      rig.pivots = parts.pivots;
+      rig.hasLegs = parts.legL !== null;
+    }
+  }
+
+  /** Pose un membre = matrice de l'agent ∘ rotation autour du pivot du membre. */
+  private setLimb(mesh: InstancedMesh, idx: number, m: Matrix4, pivot: [number, number, number], angle: number): void {
+    this.mLocal.makeTranslation(pivot[0], pivot[1], pivot[2]);
+    this.mRot.makeRotationX(angle);
+    this.mLocal.multiply(this.mRot);
+    this.mTmp.makeTranslation(-pivot[0], -pivot[1], -pivot[2]);
+    this.mLocal.multiply(this.mTmp);
+    this.mLimb.multiplyMatrices(m, this.mLocal);
+    mesh.setMatrixAt(idx, this.mLimb);
+  }
+
+  /** Repositionne et **anime** (marche articulée) les instances chaque frame. */
   update(timeSeconds = 0): void {
     const snap = this.sim.agents.snapshot();
     const terrain = this.sim.terrain;
-    const modelCount = this.meshes.length || 1;
-    const counts = new Array(this.meshes.length).fill(0);
+    const counts = new Array(this.rigs.length).fill(0);
     this.dummy.rotation.order = "YXZ"; // cap (Y) puis inclinaison (X) puis roulis (Z)
 
     for (let i = 0; i < snap.count; i++) {
       const wx = snap.x[i]!;
       const wy = snap.y[i]!;
-      // Répartit les habitants entre les silhouettes disponibles.
-      const m = i % modelCount;
-      const mesh = this.meshes[m]!;
-      const idx = counts[m]!;
+      const v = i % this.rigs.length;
+      const rig = this.rigs[v]!;
+      const idx = counts[v]!;
       if (idx >= MAX_AGENTS) continue;
 
       // Cap + vitesse depuis la frame précédente (orientation lissée, foulée).
@@ -268,32 +366,53 @@ export class InhabitantsLayer {
       this.prevX[i] = wx;
       this.prevY[i] = wy;
 
-      // Marche : la foulée avance avec la distance ; rebond, inclinaison et
-      // roulis en dépendent. Au repos, légère respiration.
+      // Foulée : avance avec la distance ; pilote rebond, inclinaison et
+      // balancement des membres. Au repos : légère respiration, membres au neutre.
       this.stridePhase[i] = this.stridePhase[i]! + speed * STRIDE;
       const moving = Math.min(1, speed / 0.02);
       const ph = this.stridePhase[i]!;
+      const swing = Math.sin(ph);
       const bob =
         moving > 0.05
           ? Math.abs(Math.sin(ph)) * BOB_AMP * moving
           : Math.sin(timeSeconds * 2.2 + i * 0.7) * IDLE_BOB;
       const lean = LEAN * moving;
-      const sway = Math.sin(ph) * SWAY * moving;
+      const sway = swing * SWAY * moving;
 
       const groundY = groundHeightAt(terrain, wx, wy);
       this.dummy.position.set(wx, groundY + bob, wy);
       this.dummy.rotation.set(lean, this.heading[i]!, sway);
       this.dummy.scale.setScalar(1); // géométrie déjà normalisée à AGENT_HEIGHT
       this.dummy.updateMatrix();
-      mesh.setMatrixAt(idx, this.dummy.matrix);
+      const m = this.dummy.matrix;
+      rig.body.setMatrixAt(idx, m);
 
-      counts[m] = idx + 1;
+      // Bras en opposition ; jambes en opposition (bras droit avec jambe gauche).
+      const armA = ARM_SWING * moving * swing;
+      this.setLimb(rig.armR, idx, m, rig.pivots.armR, armA);
+      this.setLimb(rig.armL, idx, m, rig.pivots.armL, -armA);
+      if (rig.hasLegs) {
+        const legA = LEG_SWING * moving * swing;
+        this.setLimb(rig.legL, idx, m, rig.pivots.legL, legA);
+        this.setLimb(rig.legR, idx, m, rig.pivots.legR, -legA);
+      }
+
+      counts[v] = idx + 1;
     }
     this.primed = true;
 
-    for (let m = 0; m < this.meshes.length; m++) {
-      this.meshes[m]!.count = counts[m]!;
-      this.meshes[m]!.instanceMatrix.needsUpdate = true;
+    for (let v = 0; v < this.rigs.length; v++) {
+      const rig = this.rigs[v]!;
+      const n = counts[v]!;
+      for (const mesh of [rig.body, rig.armL, rig.armR]) {
+        mesh.count = n;
+        mesh.instanceMatrix.needsUpdate = true;
+      }
+      const legN = rig.hasLegs ? n : 0;
+      for (const mesh of [rig.legL, rig.legR]) {
+        mesh.count = legN;
+        mesh.instanceMatrix.needsUpdate = true;
+      }
     }
   }
 }
