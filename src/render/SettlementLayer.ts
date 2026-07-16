@@ -31,7 +31,7 @@ import { groundHeightAt } from "./TerrainMesh";
  * Se reconstruit sur `settlements:updated` (nouvelles huttes quand le village
  * grandit) ; la flamme et la lumière s'animent chaque frame via `update()`.
  */
-const MAX_HUTS = 240;
+const MAX_HUTS = 512;
 const MAX_TOTEMS = 8;
 const MAX_FIELDS = 24;
 const MAX_TEMPLES = 8;

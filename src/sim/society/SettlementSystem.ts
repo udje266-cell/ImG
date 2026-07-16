@@ -37,9 +37,17 @@ export interface Field {
 /** Un village par tranche d'habitants (borné). */
 const AGENTS_PER_VILLAGE = 12;
 const MAX_VILLAGES = 8;
-/** Une hutte par tranche d'habitants du village (bornée). */
-const DWELLERS_PER_HUT = 4;
-const MAX_HUTS_PER_VILLAGE = 14;
+/**
+ * **Une maison par habitant** : chacun bâtit son propre foyer (il serait
+ * illogique que tout un village partage une seule hutte). Au-delà du plafond de
+ * maisons du village (terrain constructible limité), les habitants en surnombre
+ * se partagent les maisons existantes — mais décalés (cf. `occupantOffset`),
+ * jamais empilés au même point.
+ */
+const DWELLERS_PER_HUT = 1;
+const MAX_HUTS_PER_VILLAGE = 64;
+/** Décalage (tuiles) des co-occupants autour de leur maison, pour ne pas s'empiler. */
+const OCCUPANT_OFFSET = 0.34;
 /** Champs cultivés par village (posés en couronne au-delà des huttes). */
 const FIELDS_PER_VILLAGE = 2;
 /** Rayon de recherche (tuiles) d'une tuile constructible. */
@@ -70,6 +78,19 @@ function ringSlot(slot: number): { radius: number; angle: number } {
     idx -= cap;
   }
   return { radius: RING0, angle: 0 };
+}
+
+/**
+ * Décalage du j-ième occupant d'une maison : le premier est pile au foyer, les
+ * suivants se répartissent en **rosace** (angle d'or) autour, sur un ou deux
+ * anneaux serrés — de quoi loger quelques co-occupants sans jamais les empiler.
+ * Déterministe (aucun aléa).
+ */
+function occupantOffset(j: number): { x: number; y: number } {
+  if (j <= 0) return { x: 0, y: 0 };
+  const angle = j * 2.399963; // angle d'or (rad) → points bien répartis
+  const radius = OCCUPANT_OFFSET * (1 + Math.floor((j - 1) / 6) * 0.7);
+  return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
 }
 
 export class SettlementSystem {
@@ -144,29 +165,60 @@ export class SettlementSystem {
     if (this._villages.length === 0) return;
 
     // Huttes (en anneaux concentriques) puis champs autour de chaque centre.
-    // On mémorise la plage de huttes de chaque village pour y loger ses gens.
-    const hutRange: Array<[number, number]> = [];
     for (const village of this._villages) {
-      const start = this._dwellings.length;
       this.raiseDwellings(village);
-      hutRange.push([start, this._dwellings.length]);
       this.sowFields(village);
     }
 
-    // Foyer de chaque habitant = une MAISON de son village (réparti en
-    // ronde sur les huttes) : les gens vivent dans les maisons, ils ne
-    // s'empilent plus sur un point unique.
-    const counter = new Int32Array(this._villages.length);
+    // Chaque habitant emménage dans SA maison (la plus proche), les
+    // co-occupants éventuels décalés autour d'elle.
+    this.assignHomes(agents);
+  }
+
+  /**
+   * Loge chaque habitant dans **sa** maison : celle qui lui est la plus proche
+   * (on vit dans la maison voisine de là où on s'est regroupé). Les éventuels
+   * co-occupants d'une même maison sont **décalés en rosace** autour d'elle
+   * (jamais empilés au même point). Si aucune maison n'existe encore, on se rabat
+   * sur le centre du village le plus proche. Purement géométrique, déterministe.
+   */
+  private assignHomes(agents: AgentSystem): void {
+    const snap = agents.snapshot();
+    const n = snap.count;
+    if (n === 0) return;
+    const dwellings = this._dwellings;
+    const occ = new Int32Array(dwellings.length); // nb d'occupants déjà logés par maison
     for (let i = 0; i < n; i++) {
-      let v = seedToVillage[assign[i]!]!;
-      if (v < 0) v = 0;
-      const [start, end] = hutRange[v] ?? [0, 0];
-      const village = this._villages[v]!;
-      if (end > start) {
-        const d = this._dwellings[start + (counter[v]!++ % (end - start))]!;
-        agents.setHome(i, d.x, d.y);
+      const ax = snap.x[i]!;
+      const ay = snap.y[i]!;
+      if (dwellings.length > 0) {
+        let best = 0;
+        let bestD = Infinity;
+        for (let d = 0; d < dwellings.length; d++) {
+          const dd = (dwellings[d]!.x - ax) ** 2 + (dwellings[d]!.y - ay) ** 2;
+          if (dd < bestD) {
+            bestD = dd;
+            best = d;
+          }
+        }
+        const home = dwellings[best]!;
+        const j = occ[best]!++;
+        const off = occupantOffset(j);
+        agents.setHome(i, home.x + off.x, home.y + off.y);
       } else {
-        agents.setHome(i, village.x, village.y);
+        // Aucune maison : rabattre sur le village le plus proche.
+        let vx = ax;
+        let vy = ay;
+        let bestD = Infinity;
+        for (const v of this._villages) {
+          const dd = (v.x - ax) ** 2 + (v.y - ay) ** 2;
+          if (dd < bestD) {
+            bestD = dd;
+            vx = v.x;
+            vy = v.y;
+          }
+        }
+        agents.setHome(i, vx, vy);
       }
     }
   }
@@ -198,14 +250,21 @@ export class SettlementSystem {
     }
 
     let changed = false;
+    let hutsAdded = false;
     for (let v = 0; v < this._villages.length; v++) {
       const village = this._villages[v]!;
       if (counts[v]! !== village.population) {
         village.population = counts[v]!;
         changed = true;
       }
-      if (this.raiseDwellings(village) > 0) changed = true;
+      if (this.raiseDwellings(village) > 0) {
+        hutsAdded = true;
+        changed = true;
+      }
     }
+    // De nouvelles maisons ont poussé (le village s'étend) : on reloge tout le
+    // monde pour que chacun occupe la maison la plus proche, sans entassement.
+    if (hutsAdded) this.assignHomes(agents);
     return changed;
   }
 
