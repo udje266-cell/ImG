@@ -37,8 +37,14 @@ const BIRTH_HUNGER_MAX = 0.35; // il faut être bien nourri…
 const BIRTH_FATIGUE_MAX = 0.6; // …et pas épuisé
 const BIRTH_CHANCE = 0.3;
 export const MAX_POPULATION = 300;
-/** Rayon de recherche (tuiles) pour nourriture/foyer. */
-const SEARCH_RADIUS = 24;
+/**
+ * Rayon du territoire (tuiles) autour du foyer : les habitants vivent, flânent
+ * et fourragent DANS ce rayon autour de leur maison, au lieu de dériver sans
+ * fin à travers toute la carte (sinon la population « déborde » partout, y
+ * compris dans les forêts — les villages ne se lisent plus). Le déplacement
+ * reste ainsi groupé autour de chaque village.
+ */
+const TERRITORY_RADIUS = 16;
 /** Foi générée par croyant et par tick, avant modulateurs. */
 const FAITH_PER_BELIEVER = 0.02;
 
@@ -555,7 +561,9 @@ export class AgentSystem {
   private pickTarget(i: number, goal: Goal): void {
     switch (goal) {
       case "forage": {
-        const spot = this.findFood(this.px[i]!, this.py[i]!);
+        // Fourrage AUTOUR DU FOYER (pas de la position courante) : les habitants
+        // restent dans leur territoire et ne migrent pas vers les forêts lointaines.
+        const spot = this.findFood(this.homeX[i]!, this.homeY[i]!);
         this.targetX[i] = spot.x;
         this.targetY[i] = spot.y;
         break;
@@ -566,23 +574,24 @@ export class AgentSystem {
         break;
       case "worship":
       case "wander": {
+        // Flânerie autour du foyer : marche courte, bornée au village.
         const angle = this.rng.float() * Math.PI * 2;
         const dist = 2 + this.rng.float() * 6;
-        this.targetX[i] = this.px[i]! + Math.cos(angle) * dist;
-        this.targetY[i] = this.py[i]! + Math.sin(angle) * dist;
+        this.targetX[i] = this.homeX[i]! + Math.cos(angle) * dist;
+        this.targetY[i] = this.homeY[i]! + Math.sin(angle) * dist;
         break;
       }
     }
   }
 
-  /** Cherche la tuile la plus verte à portée (nourriture = flore). */
+  /** Cherche la tuile la plus verte dans le territoire du foyer (`cx,cy` = foyer). */
   private findFood(cx: number, cy: number): { x: number; y: number } {
     let best = -1;
     let bx = cx;
     let by = cy;
     for (let s = 0; s < 12; s++) {
-      const x = Math.floor(cx) + this.rng.int(-SEARCH_RADIUS, SEARCH_RADIUS);
-      const y = Math.floor(cy) + this.rng.int(-SEARCH_RADIUS, SEARCH_RADIUS);
+      const x = Math.floor(cx) + this.rng.int(-TERRITORY_RADIUS, TERRITORY_RADIUS);
+      const y = Math.floor(cy) + this.rng.int(-TERRITORY_RADIUS, TERRITORY_RADIUS);
       if (!this.terrain.inBounds(x, y) || this.terrain.isWater(x, y)) continue;
       const d = this.flora.densityAt(x, y);
       if (d > best) {

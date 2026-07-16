@@ -6,7 +6,7 @@ import {
   HemisphereLight,
   Mesh,
   MeshBasicMaterial,
-  PCFSoftShadowMap,
+  PCFShadowMap,
   Raycaster,
   RingGeometry,
   Scene,
@@ -91,7 +91,10 @@ export class SceneRenderer {
     this.renderer.toneMapping = ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = PCFSoftShadowMap;
+    // three r185 a déprécié PCFSoftShadowMap (rétrogradé en PCFShadowMap avec un
+    // avertissement console). On demande directement PCFShadowMap : même rendu,
+    // sans le warning à chaque lancement.
+    this.renderer.shadowMap.type = PCFShadowMap;
 
     const { width, height } = sim.terrain;
     this.rig = new CameraRig(1, width / 2, height / 2);
