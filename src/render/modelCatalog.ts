@@ -24,9 +24,8 @@ export const MODEL_CATALOG: readonly ModelDef[] = [
   { id: "villager-mage", url: "models/characters/Mage.glb", category: "character", targetHeight: 1.4, clipHint: "idle" },
   { id: "villager-rogue", url: "models/characters/Rogue.glb", category: "character", targetHeight: 1.4, clipHint: "idle" },
   { id: "villager-rogue-hooded", url: "models/characters/Rogue_Hooded.glb", category: "character", targetHeight: 1.4, clipHint: "idle" },
-  // Habitants de l'âge de pierre (modèles fournis, décimés) — base des futurs habitants.
-  { id: "prehistoric-man", url: "models/characters/prehistoric-man.glb", category: "character", targetHeight: 1.5 },
-  { id: "prehistoric-woman", url: "models/characters/prehistoric-woman.glb", category: "character", targetHeight: 1.45 },
+  // (Les habitants du jeu sont désormais des villageois PROCÉDURAUX par ère —
+  //  cf. InhabitantsLayer ; plus aucun modèle humain externe pour la population.)
   // Faune (CC0 / CC-BY / Apache-2.0 — voir LICENSES.md).
   { id: "fox", url: "models/animals/Fox.glb", category: "animal", targetHeight: 0.7, clipHint: "survey" },
   { id: "horse", url: "models/animals/Horse.glb", category: "animal", targetHeight: 1.6 },

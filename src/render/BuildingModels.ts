@@ -41,7 +41,7 @@ const HOUSE_URLS: ReadonlyArray<readonly [Era, string, number]> = [
   [Era.Industrial, "models/buildings/house_industrial.glb", 1.2],
   [Era.Modern, "models/buildings/house_modern.glb", 1.15],
   [Era.Future, "models/buildings/house_future.glb", 1.15],
-  [Era.Interplanetary, "models/buildings/house_interplanetary.glb", 1.25], // dôme colonial (Kenney)
+  [Era.Interplanetary, "models/buildings/house_interplanetary.glb", 2.1], // dôme colonial (Kenney) — élargi pour rester plus haut que les habitants
   [Era.Galactic, "models/buildings/house_galactic.glb", 1.15], // structure sci-fi (Kenney)
 ];
 

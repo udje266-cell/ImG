@@ -113,10 +113,7 @@ function boot(): void {
       // Rappel du cœur du jeu : le peuple ne bâtit que sur du plat.
       window.setTimeout(() => hud.flash("Aplanis la terre : ton peuple ne bâtit que sur du plat. ⛰️→▦"), 3200);
     }
-    void renderer.enableInhabitants(sim, [
-      "models/characters/prehistoric-man.glb",
-      "models/characters/prehistoric-woman.glb",
-    ]);
+    renderer.enableInhabitants(sim); // villageois procéduraux (tenue par ère)
     void renderer.enableSettlements();
     if (sim.fauna.count === 0) sim.fauna.populate(80, 12); // herbivores, prédateurs
     void renderer.enableFauna(sim, ["models/animals/Horse.glb", "models/animals/Fox.glb"]);

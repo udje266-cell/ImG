@@ -19,10 +19,13 @@ Tous les modèles sont libres d'utilisation commerciale. Détail par fichier :
 - **Licence** : **Apache 2.0** (via le dépôt three.js — mention à conserver dans les crédits)
 - **Source** : https://github.com/mrdoob/three.js/tree/dev/examples/models/gltf
 
-## `characters/prehistoric-man.glb`, `characters/prehistoric-woman.glb` — fournis par le propriétaire
-- **Origine** : modèles générés via Tripo, fournis par le propriétaire du projet (détenteur des droits).
-- **Traitement** : décimés (~1,9 M tris, ~56 Mo) → ~15 k tris (2,4–2,9 Mo) via `tools/decimate-model.mjs`.
-- **Usage** : habitants de l'âge de pierre (base des futurs habitants). Statiques (pas de rig d'animation).
+## Habitants du jeu — villageois **procéduraux** (aucun modèle externe)
+Les habitants ne sont plus des modèles importés : ils sont **générés par code**
+(`src/render/InhabitantsLayer.ts`), avec une **tenue et une coiffe propres à
+chaque ère** (fourrure → tunique → armure → robe → pourpoint → redingote →
+veste → combinaison → scaphandre → robe irisée) et une **taille toujours
+inférieure à celle des maisons**. Les anciens modèles `prehistoric-man.glb` /
+`prehistoric-woman.glb` (fournis, générés via Tripo) ont été **supprimés**.
 
 ## `buildings/` — KayKit : bâtiments par ère (Kay Lousberg)
 `house_medieval.glb`, `house_renaissance.glb`, `monument_medieval.glb`, `monument_renaissance.glb`

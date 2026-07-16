@@ -238,8 +238,8 @@ export class SceneRenderer {
   }
 
   /** Charge le rendu instancié des habitants. */
-  async enableInhabitants(sim: Simulation, urls: string[]): Promise<void> {
-    this.inhabitants = await InhabitantsLayer.create(sim, urls, (mesh) => this.scene.add(mesh));
+  enableInhabitants(sim: Simulation): void {
+    this.inhabitants = new InhabitantsLayer(sim, (mesh) => this.scene.add(mesh));
   }
 
   /** Charge le rendu instancié de la faune ([herbivore, prédateur]). */
