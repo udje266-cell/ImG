@@ -323,7 +323,7 @@ export class SceneRenderer {
 
     this.weatherLayer.update();
     this.forest?.refresh();
-    this.inhabitants?.update();
+    this.inhabitants?.update(now / 1000);
     this.faunaLayer?.update();
     // Feux de camp : flammes qui dansent, halos qui portent la nuit.
     this.settlements?.update(now / 1000, daylight);

@@ -26,6 +26,12 @@ const AGENT_HEIGHT = 0.8;
 const MAX_AGENTS = 4000;
 /** Douceur du virage (0 = figé, 1 = instantané) : rotation naturelle. */
 const TURN_SMOOTHING = 0.18;
+/** Animation de marche : la foulée avance avec la distance parcourue. */
+const STRIDE = 8; // radians de cycle par unité monde (~un pas tous les 0,4)
+const BOB_AMP = 0.05; // rebond vertical (unités monde) en marchant
+const LEAN = 0.13; // inclinaison avant en marchant (radians)
+const SWAY = 0.09; // roulis gauche/droite en marchant (radians)
+const IDLE_BOB = 0.009; // respiration au repos
 /** Deux silhouettes par ère (jambes / robe) pour que la foule ne soit pas clonée. */
 const VARIANTS = 2;
 /** Teint de peau (partagé). */
@@ -161,6 +167,15 @@ function makeVillager(era: Era, variant: number): BufferGeometry {
   add(new CylinderGeometry(0.03, 0.03, 0.04, 6), SKIN, (g) => g.translate(0, 0.6, 0));
   const yHead = 0.66;
   add(new SphereGeometry(0.085, 10, 8), SKIN, (g) => g.translate(0, yHead, 0));
+  // Yeux : deux petits points sombres sur la face avant (+Z = direction de marche).
+  for (const sx of [-1, 1]) {
+    add(new BoxGeometry(0.02, 0.026, 0.018), 0x241d16, (g) => g.translate(sx * 0.031, yHead + 0.004, 0.077));
+  }
+  // Lance des ères de chasse/guerre (tenue dans la main droite).
+  if (era === Era.Stone || era === Era.Bronze || era === Era.Iron) {
+    add(new CylinderGeometry(0.011, 0.011, 0.62, 6), 0x6b4a2a, (g) => { g.rotateX(-0.1); g.translate(0.205, 0.34, 0); });
+    add(new ConeGeometry(0.028, 0.09, 6), era === Era.Stone ? 0x8f8378 : 0xb87333, (g) => { g.rotateX(-0.1); g.translate(0.205, 0.67, 0); });
+  }
   // Coiffe/casque de l'ère.
   addHat(era, add, yHead);
 
@@ -191,6 +206,8 @@ export class InhabitantsLayer {
   private readonly heading = new Float32Array(MAX_AGENTS);
   private readonly prevX = new Float32Array(MAX_AGENTS);
   private readonly prevY = new Float32Array(MAX_AGENTS);
+  /** Phase de foulée par habitant (avance avec la distance marchée). */
+  private readonly stridePhase = new Float32Array(MAX_AGENTS);
   private primed = false;
 
   constructor(
@@ -216,12 +233,13 @@ export class InhabitantsLayer {
     });
   }
 
-  /** Repositionne les instances depuis le snapshot des agents (chaque frame). */
-  update(): void {
+  /** Repositionne et **anime** les instances depuis le snapshot des agents. */
+  update(timeSeconds = 0): void {
     const snap = this.sim.agents.snapshot();
     const terrain = this.sim.terrain;
     const modelCount = this.meshes.length || 1;
     const counts = new Array(this.meshes.length).fill(0);
+    this.dummy.rotation.order = "YXZ"; // cap (Y) puis inclinaison (X) puis roulis (Z)
 
     for (let i = 0; i < snap.count; i++) {
       const wx = snap.x[i]!;
@@ -232,10 +250,12 @@ export class InhabitantsLayer {
       const idx = counts[m]!;
       if (idx >= MAX_AGENTS) continue;
 
-      // Cap = direction de marche (vitesse depuis la frame précédente), lissé.
+      // Cap + vitesse depuis la frame précédente (orientation lissée, foulée).
+      let speed = 0;
       if (this.primed) {
         const vx = wx - this.prevX[i]!;
         const vy = wy - this.prevY[i]!;
+        speed = Math.sqrt(vx * vx + vy * vy);
         if (vx * vx + vy * vy > 1e-4) {
           const desired = Math.atan2(vx, vy);
           let d = desired - this.heading[i]!;
@@ -248,9 +268,21 @@ export class InhabitantsLayer {
       this.prevX[i] = wx;
       this.prevY[i] = wy;
 
+      // Marche : la foulée avance avec la distance ; rebond, inclinaison et
+      // roulis en dépendent. Au repos, légère respiration.
+      this.stridePhase[i] = this.stridePhase[i]! + speed * STRIDE;
+      const moving = Math.min(1, speed / 0.02);
+      const ph = this.stridePhase[i]!;
+      const bob =
+        moving > 0.05
+          ? Math.abs(Math.sin(ph)) * BOB_AMP * moving
+          : Math.sin(timeSeconds * 2.2 + i * 0.7) * IDLE_BOB;
+      const lean = LEAN * moving;
+      const sway = Math.sin(ph) * SWAY * moving;
+
       const groundY = groundHeightAt(terrain, wx, wy);
-      this.dummy.position.set(wx, groundY, wy);
-      this.dummy.rotation.set(0, this.heading[i]!, 0);
+      this.dummy.position.set(wx, groundY + bob, wy);
+      this.dummy.rotation.set(lean, this.heading[i]!, sway);
       this.dummy.scale.setScalar(1); // géométrie déjà normalisée à AGENT_HEIGHT
       this.dummy.updateMatrix();
       mesh.setMatrixAt(idx, this.dummy.matrix);
