@@ -36,6 +36,28 @@ const SWAY = 0.09;
 const IDLE_BOB = 0.009;
 const ARM_SWING = 0.62;
 const LEG_SWING = 0.5;
+
+/** Geste de travail d'un métier (bras droit), joué à l'arrêt. */
+interface Work {
+  base: number; // angle de repos du bras (radians, avant = positif)
+  amp: number; // amplitude du geste
+  freq: number; // cadence (rad/s)
+  effort?: number; // léger buste en avant + abaissement sur le coup
+}
+/**
+ * Gestes de métier (index = code métier). À l'arrêt, l'habitant **travaille** :
+ * le fermier bêche, le forgeron martèle, l'ouvrier visse, le prêtre bénit, etc.
+ * Les métiers sans geste (marchand) se contentent de respirer.
+ */
+const WORK: (Work | undefined)[] = [];
+WORK[PROFESSION_CODES.hunter] = { base: 0.12, amp: 0.14, freq: 1.4 }; // guette
+WORK[PROFESSION_CODES.farmer] = { base: 0.2, amp: 0.9, freq: 3.0, effort: 0.03 }; // bêche
+WORK[PROFESSION_CODES.smith] = { base: 0.12, amp: 1.15, freq: 4.3, effort: 0.035 }; // martèle
+WORK[PROFESSION_CODES.priest] = { base: 0.12, amp: 0.28, freq: 1.2 }; // bénit
+WORK[PROFESSION_CODES.warrior] = { base: 0.1, amp: 0.22, freq: 1.0 }; // garde
+WORK[PROFESSION_CODES.scholar] = { base: 0.68, amp: 0.06, freq: 1.8 }; // lit
+WORK[PROFESSION_CODES.worker] = { base: 0.32, amp: 0.5, freq: 2.7, effort: 0.02 }; // visse
+WORK[PROFESSION_CODES.engineer] = { base: 0.6, amp: 0.13, freq: 3.4 }; // pianote
 /** Nombre de métiers (index = code, cf. `PROFESSION_CODES`). */
 const NUM_PROFESSIONS = Object.keys(PROFESSION_CODES).length;
 /** Capacité de suivi d'orientation/foulée, indexée par index d'agent stable. */
@@ -409,12 +431,42 @@ export class InhabitantsLayer {
       const moving = Math.min(1, speed / 0.02);
       const ph = this.stridePhase[i]!;
       const swing = Math.sin(ph);
-      const bob =
-        moving > 0.05
-          ? Math.abs(Math.sin(ph)) * BOB_AMP * moving
-          : Math.sin(timeSeconds * 2.2 + i * 0.7) * IDLE_BOB;
-      const lean = LEAN * moving;
-      const sway = swing * SWAY * moving;
+
+      // Deux régimes : en marche → foulée articulée ; à l'arrêt → geste de métier.
+      let bob: number;
+      let lean: number;
+      let sway = 0;
+      let armRa: number;
+      let armLa: number;
+      let legLa = 0;
+      let legRa = 0;
+      if (moving > 0.05) {
+        bob = Math.abs(swing) * BOB_AMP * moving;
+        lean = LEAN * moving;
+        sway = swing * SWAY * moving;
+        const a = ARM_SWING * moving * swing;
+        armRa = a;
+        armLa = -a;
+        const l = LEG_SWING * moving * swing;
+        legLa = l;
+        legRa = -l;
+      } else {
+        bob = Math.sin(timeSeconds * 2.2 + i * 0.7) * IDLE_BOB;
+        lean = 0;
+        const work = WORK[prof];
+        if (work) {
+          const w = 0.5 - 0.5 * Math.cos(timeSeconds * work.freq + i); // 0→1→0, geste répété
+          armRa = work.base + work.amp * w;
+          armLa = -0.04;
+          if (work.effort) {
+            lean = work.effort * 3 * w; // buste en avant sur l'effort
+            bob -= work.effort * w; // s'abaisse sur le coup
+          }
+        } else {
+          armRa = 0;
+          armLa = 0;
+        }
+      }
 
       const groundY = groundHeightAt(terrain, wx, wy);
       this.dummy.position.set(wx, groundY + bob, wy);
@@ -424,13 +476,11 @@ export class InhabitantsLayer {
       const m = this.dummy.matrix;
       rig.body.setMatrixAt(idx, m);
 
-      const armA = ARM_SWING * moving * swing;
-      this.setLimb(rig.armR, idx, m, rig.pivots.armR, armA);
-      this.setLimb(rig.armL, idx, m, rig.pivots.armL, -armA);
+      this.setLimb(rig.armR, idx, m, rig.pivots.armR, armRa);
+      this.setLimb(rig.armL, idx, m, rig.pivots.armL, armLa);
       if (rig.hasLegs) {
-        const legA = LEG_SWING * moving * swing;
-        this.setLimb(rig.legL, idx, m, rig.pivots.legL, legA);
-        this.setLimb(rig.legR, idx, m, rig.pivots.legR, -legA);
+        this.setLimb(rig.legL, idx, m, rig.pivots.legL, legLa);
+        this.setLimb(rig.legR, idx, m, rig.pivots.legR, legRa);
       }
 
       counts[prof] = idx + 1;
