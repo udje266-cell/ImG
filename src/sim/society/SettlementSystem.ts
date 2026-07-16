@@ -1,6 +1,6 @@
 import type { Rng } from "../../core/math/Rng";
 import type { TerrainGrid } from "../terrain/TerrainGrid";
-import type { AgentSystem } from "../agents/AgentSystem";
+import { PROFESSION_CODES, type AgentSystem } from "../agents/AgentSystem";
 
 /**
  * Villages et foyers (docs/GDD.md §4 « Sociétés », cahier des charges §5).
@@ -93,6 +93,38 @@ function occupantOffset(j: number): { x: number; y: number } {
   return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
 }
 
+/**
+ * Ancres de travail d'un village : les lieux où l'on exerce chaque métier
+ * (atelier/forge, place de marché, poste de garde, champ, cœur du village).
+ */
+interface WorkAnchors {
+  forge: Dwelling; // forgeron, ouvrier, ingénieur (atelier)
+  market: Dwelling; // marchand (place)
+  guard: Dwelling; // guerrier, chasseur (lisière/poste de garde)
+  field: Dwelling; // fermier (champ cultivé)
+  center: Dwelling; // prêtre, érudit (cœur du village / temple)
+}
+
+/** Lieu de travail correspondant à un métier (code) dans un village donné. */
+function workplaceFor(prof: number, a: WorkAnchors): Dwelling {
+  switch (prof) {
+    case PROFESSION_CODES.smith:
+    case PROFESSION_CODES.worker:
+    case PROFESSION_CODES.engineer:
+      return a.forge;
+    case PROFESSION_CODES.merchant:
+      return a.market;
+    case PROFESSION_CODES.warrior:
+    case PROFESSION_CODES.hunter:
+      return a.guard;
+    case PROFESSION_CODES.farmer:
+      return a.field;
+    // prêtre, érudit et tout métier sans atelier dédié : le cœur du village.
+    default:
+      return a.center;
+  }
+}
+
 export class SettlementSystem {
   private readonly _villages: Village[] = [];
   private readonly _dwellings: Dwelling[] = [];
@@ -173,6 +205,8 @@ export class SettlementSystem {
     // Chaque habitant emménage dans SA maison (la plus proche), les
     // co-occupants éventuels décalés autour d'elle.
     this.assignHomes(agents);
+    // …puis rejoint son lieu de travail selon son métier (forge, champ, marché…).
+    this.assignWorkplaces(agents);
   }
 
   /**
@@ -224,6 +258,63 @@ export class SettlementSystem {
   }
 
   /**
+   * Attribue à chaque habitant un **lieu de travail** cohérent avec son métier,
+   * ancré dans son village : le forgeron/ouvrier/ingénieur à l'atelier, le
+   * marchand au marché, le guerrier/chasseur au poste de garde (lisière), le
+   * fermier à son champ, le prêtre/érudit au cœur du village. Le geste de métier
+   * (rendu) se joue ainsi à un **vrai endroit**, pas au hasard près du foyer.
+   * Purement géométrique et déterministe (anneaux fixes + champ le plus proche).
+   * À appeler après `found`/`expand` et au chargement d'une partie.
+   */
+  assignWorkplaces(agents: AgentSystem): void {
+    if (this._villages.length === 0) return;
+    const snap = agents.snapshot();
+    const n = snap.count;
+    if (n === 0) return;
+
+    // Ancres de métier par village (déterministes : angles/rayons fixes calés
+    // sur une tuile constructible ; le champ = la parcelle la plus proche).
+    const anchors: WorkAnchors[] = this._villages.map((v) => {
+      const at = (angle: number, radius: number): Dwelling =>
+        this.nearestBuildableTile(v.x + Math.cos(angle) * radius, v.y + Math.sin(angle) * radius) ?? {
+          x: v.x,
+          y: v.y,
+        };
+      let field: Dwelling = { x: v.x, y: v.y };
+      let bestD = Infinity;
+      for (const f of this._fields) {
+        const d = (f.x - v.x) ** 2 + (f.y - v.y) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          field = f;
+        }
+      }
+      if (bestD === Infinity) field = at(Math.PI / 2, RING0 + 3 * RING_GAP);
+      return {
+        forge: at(0.4, RING0 + RING_GAP),
+        market: at(2.5, RING0),
+        guard: at(4.5, RING0 + 2 * RING_GAP),
+        field,
+        center: { x: v.x, y: v.y },
+      };
+    });
+
+    for (let i = 0; i < n; i++) {
+      let bv = 0;
+      let bestD = Infinity;
+      for (let v = 0; v < this._villages.length; v++) {
+        const d = (snap.x[i]! - this._villages[v]!.x) ** 2 + (snap.y[i]! - this._villages[v]!.y) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          bv = v;
+        }
+      }
+      const spot = workplaceFor(snap.profession[i]!, anchors[bv]!);
+      agents.setWork(i, spot.x, spot.y);
+    }
+  }
+
+  /**
    * Croissance des villages : recompte la population de chaque village
    * (habitant → village le plus proche) et bâtit de nouvelles huttes quand
    * elle dépasse la capacité. Appelée périodiquement par la Simulation.
@@ -265,6 +356,9 @@ export class SettlementSystem {
     // De nouvelles maisons ont poussé (le village s'étend) : on reloge tout le
     // monde pour que chacun occupe la maison la plus proche, sans entassement.
     if (hutsAdded) this.assignHomes(agents);
+    // Réattribue les lieux de travail : couvre les nouveau-nés (sans travail
+    // encore) et tout changement de métier survenu depuis la dernière passe.
+    this.assignWorkplaces(agents);
     return changed;
   }
 

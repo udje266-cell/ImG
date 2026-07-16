@@ -359,7 +359,12 @@ export function loadSimulation(raw: AnySaveData, options: { now?: () => number }
   if (data.flora.density.length > 0) sim.flora.restore(data.flora);
   if (data.agents.px.length > 0) sim.agents.restore(data.agents);
   if (data.fauna.px.length > 0) sim.fauna.restore(data.fauna);
-  if (data.settlements.vx.length > 0) sim.settlements.restore(data.settlements);
+  if (data.settlements.vx.length > 0) {
+    sim.settlements.restore(data.settlements);
+    // Les lieux de travail ne sont pas sérialisés : on les ré-dérive des
+    // villages/champs restaurés pour que l'IA « work » retrouve ses ancres.
+    sim.settlements.assignWorkplaces(sim.agents);
+  }
   if (data.religion.bienfait.length > 0) sim.religion.restore(data.religion);
   sim.era.restore(data.era);
   if (data.divineMemory) sim.divineMemory.restore(data.divineMemory);

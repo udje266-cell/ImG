@@ -137,7 +137,7 @@ describe("AgentSystem — IA vivante (cahier des charges §8)", () => {
     expect(typeof p.profession).toBe("string");
     expect(labelToProfession(p.profession)).toBeDefined();
     expect(p.parents).toHaveLength(2);
-    expect(["forage", "rest", "wander", "worship"]).toContain(p.goal);
+    expect(["forage", "rest", "wander", "worship", "work"]).toContain(p.goal);
   });
 
   it("l'IA vivante survit au cycle sauvegarde/chargement (traits, métiers, famille)", () => {

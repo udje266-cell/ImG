@@ -48,7 +48,7 @@ const TERRITORY_RADIUS = 16;
 /** Foi générée par croyant et par tick, avant modulateurs. */
 const FAITH_PER_BELIEVER = 0.02;
 
-export type Goal = "forage" | "rest" | "wander" | "worship";
+export type Goal = "forage" | "rest" | "wander" | "worship" | "work";
 
 /** Métiers, apparaissant au fil des âges (cohérence historique). */
 export type Profession =
@@ -117,7 +117,7 @@ export interface AgentSnapshot {
   profession: Uint8Array;
 }
 
-const GOAL_CODES: Record<Goal, number> = { forage: 0, rest: 1, wander: 2, worship: 3 };
+const GOAL_CODES: Record<Goal, number> = { forage: 0, rest: 1, wander: 2, worship: 3, work: 4 };
 /** Code numérique d'un métier dans le snapshot (index = code). Exporté pour que
  *  le rendu (accessoires par métier) reste synchrone avec la simulation. */
 export const PROFESSION_CODES: Record<Profession, number> = {
@@ -156,6 +156,14 @@ export class AgentSystem {
   private readonly beckonX: number[] = [];
   private readonly beckonY: number[] = [];
   private readonly beckonTicks: number[] = [];
+  // Lieu de travail (forge, champ, marché, temple…) attribué par
+  // `SettlementSystem` en fonction du métier. L'objectif « work » y ramène
+  // l'habitant, qui y joue alors son geste de métier (rendu). Transitoire :
+  // ré-dérivé au chargement (via `SettlementSystem.assignWorkplaces`), donc NON
+  // sérialisé — une sauvegarde reste ainsi rétro-compatible.
+  private readonly workX: number[] = [];
+  private readonly workY: number[] = [];
+  private readonly hasWork: boolean[] = [];
   private readonly rng: Rng;
   private readonly personaRng: Rng;
   /** Ère courante de la civilisation (pilote les professions). */
@@ -195,6 +203,19 @@ export class AgentSystem {
   setHome(i: number, x: number, y: number): void {
     this.homeX[i] = x;
     this.homeY[i] = y;
+  }
+
+  /**
+   * Attribue à un habitant son **lieu de travail** (forge, champ, marché, temple
+   * de garnison…), calculé par `SettlementSystem` selon son métier. Dès lors,
+   * l'objectif « work » l'y ramène pour y accomplir son labeur (le rendu joue
+   * alors le geste de métier au bon endroit, pas n'importe où).
+   */
+  setWork(i: number, x: number, y: number): void {
+    if (i < 0 || i >= this.px.length) return;
+    this.workX[i] = x;
+    this.workY[i] = y;
+    this.hasWork[i] = true;
   }
 
   /** Marie deux habitants (lien réciproque). */
@@ -341,7 +362,7 @@ export class AgentSystem {
       this.px, this.py, this.hunger, this.fatigue, this.fervour, this.piety, this.courage,
       this.curiosity, this.sociability, this.joy, this.fear, this.anger, this.grief,
       this.spouse, this.parentA, this.parentB, this.targetX, this.targetY, this.homeX,
-      this.homeY, this.beckonX, this.beckonY, this.beckonTicks,
+      this.homeY, this.beckonX, this.beckonY, this.beckonTicks, this.workX, this.workY,
     ];
     for (const a of numeric) {
       let k = 0;
@@ -354,6 +375,9 @@ export class AgentSystem {
     k = 0;
     for (let i = 0; i < n; i++) if (remap[i]! >= 0) this.goal[k++] = this.goal[i]!;
     this.goal.length = w;
+    k = 0;
+    for (let i = 0; i < n; i++) if (remap[i]! >= 0) this.hasWork[k++] = this.hasWork[i]!;
+    this.hasWork.length = w;
     // Ré-adresse les liens de famille (index déplacés ; cible morte → aucun).
     for (let i = 0; i < w; i++) {
       this.spouse[i] = this.spouse[i]! >= 0 ? remap[this.spouse[i]!]! : -1;
@@ -415,6 +439,11 @@ export class AgentSystem {
     this.beckonX.push(x);
     this.beckonY.push(y);
     this.beckonTicks.push(0);
+    // Sans village encore fondé, le lieu de travail est le foyer (neutre) et
+    // reste inactif : `SettlementSystem.assignWorkplaces` le fixera au village.
+    this.workX.push(x);
+    this.workY.push(y);
+    this.hasWork.push(false);
     return i;
   }
 
@@ -545,6 +574,10 @@ export class AgentSystem {
     const uRest = fatigue + fear * 0.8; // la peur pousse à se replier au foyer
     const uWorship = Math.max(0, piety * 0.6 * (this.fervour[i]! / 3) + joy * 0.2 - fear * 0.3);
     const uWander = 0.25 + joy * 0.3 + this.sociability[i]! * 0.1;
+    // Travail : un habitant rassasié et reposé rejoint son lieu de travail (forge,
+    // champ, marché…) pour y accomplir son métier — c'est l'occupation par
+    // défaut d'une vie de village saine. Nul travail sans lieu attribué.
+    const uWork = this.hasWork[i] ? 0.6 * (1 - hunger) * (1 - fatigue) : 0;
 
     // Le deuil rend apathique : toutes les envies s'émoussent.
     const damp = 1 - grief * 0.4;
@@ -554,6 +587,7 @@ export class AgentSystem {
     if (uForage * damp > bestU) (best = "forage"), (bestU = uForage * damp);
     if (uRest * damp > bestU) (best = "rest"), (bestU = uRest * damp);
     if (uWorship * damp > bestU) (best = "worship"), (bestU = uWorship * damp);
+    if (uWork * damp > bestU) (best = "work"), (bestU = uWork * damp);
 
     if (best !== this.goal[i]) this.goal[i] = best;
     this.pickTarget(i, best);
@@ -574,6 +608,15 @@ export class AgentSystem {
         this.targetX[i] = this.homeX[i]!;
         this.targetY[i] = this.homeY[i]!;
         break;
+      case "work": {
+        // Rejoint son lieu de travail, avec une légère dispersion pour que
+        // plusieurs habitants du même métier ne s'empilent pas sur un seul point.
+        const angle = this.rng.float() * Math.PI * 2;
+        const dist = this.rng.float() * 1.1;
+        this.targetX[i] = this.workX[i]! + Math.cos(angle) * dist;
+        this.targetY[i] = this.workY[i]! + Math.sin(angle) * dist;
+        break;
+      }
       case "worship":
       case "wander": {
         // Flânerie autour du foyer : marche courte, bornée au village.
@@ -633,6 +676,11 @@ export class AgentSystem {
         // La prière renforce la ferveur (plafonnée) et apaise (petite joie).
         this.fervour[i] = Math.min(3, this.fervour[i]! + 0.05);
         this.joy[i] = Math.min(1, this.joy[i]! + 0.02);
+        break;
+      case "work":
+        // Le labeur au bon endroit donne un sentiment d'utilité (petite joie),
+        // sans toucher aux besoins (la subsistance passe par forage/commerce).
+        this.joy[i] = Math.min(1, this.joy[i]! + 0.01);
         break;
       case "wander":
         break;
@@ -744,6 +792,11 @@ export class AgentSystem {
       this.beckonX.push(data.px[i]!);
       this.beckonY.push(data.py[i]!);
       this.beckonTicks.push(0);
+      // Le lieu de travail est ré-dérivé après coup (via
+      // `SettlementSystem.assignWorkplaces`) : défaut neutre au foyer, inactif.
+      this.workX.push(data.homeX[i]!);
+      this.workY.push(data.homeY[i]!);
+      this.hasWork.push(false);
     }
     this.rng.setState(data.rngState);
     if (data.personaRngState !== undefined) this.personaRng.setState(data.personaRngState);
@@ -755,10 +808,11 @@ export class AgentSystem {
       this.px, this.py, this.hunger, this.fatigue, this.fervour, this.piety, this.courage,
       this.curiosity, this.sociability, this.joy, this.fear, this.anger, this.grief,
       this.spouse, this.parentA, this.parentB, this.targetX, this.targetY, this.homeX,
-      this.homeY, this.beckonX, this.beckonY, this.beckonTicks,
+      this.homeY, this.beckonX, this.beckonY, this.beckonTicks, this.workX, this.workY,
     ];
     for (const a of arrays) a.length = 0;
     this.profession.length = 0;
     this.goal.length = 0;
+    this.hasWork.length = 0;
   }
 }

@@ -105,6 +105,34 @@ describe("SettlementSystem (docs/GDD.md §4 « Sociétés »)", () => {
     expect(restored.serialize()).toEqual(data);
   });
 
+  it("attribue un lieu de travail : les habitants rassasiés vont travailler", () => {
+    const { agents } = makeFounded(7, 60);
+    // `found` a déjà attribué les lieux de travail. Les habitants naissent
+    // rassasiés et reposés → sans besoin urgent, l'IA doit préférer « work ».
+    // Un décide() par agent (staggeré modulo 20) : 40 ticks couvrent un cycle.
+    for (let t = 0; t < 40; t++) agents.update(t);
+    let working = 0;
+    for (let i = 0; i < agents.count; i++) if (agents.profile(i).goal === "work") working++;
+    // Sans famine ni fatigue extrême, une bonne part de la population travaille.
+    expect(working).toBeGreaterThan(0);
+  });
+
+  it("les lieux de travail se ré-dérivent au chargement (non sérialisés)", () => {
+    const sim = new Simulation({ seed: 5, width: 48, height: 48 });
+    sim.agents.populate(40);
+    sim.era.restore({ knowledge: 3000, era: 2 }); // Fer : métiers variés
+    sim.foundSettlements();
+    for (let i = 0; i < 60; i++) sim.step();
+    const reloaded = loadSimulation(JSON.parse(JSON.stringify(serializeSimulation(sim))));
+    // Après rechargement, l'IA « work » reste possible (ancres retrouvées).
+    for (let t = 0; t < 40; t++) reloaded.agents.update(t);
+    let working = 0;
+    for (let i = 0; i < reloaded.agents.count; i++) {
+      if (reloaded.agents.profile(i).goal === "work") working++;
+    }
+    expect(working).toBeGreaterThan(0);
+  });
+
   it("survives a full save/load cycle through the Simulation", () => {
     const sim = new Simulation({ seed: 5, width: 48, height: 48 });
     sim.agents.populate(40);

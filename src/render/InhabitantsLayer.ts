@@ -404,6 +404,7 @@ export class InhabitantsLayer {
     for (let i = 0; i < snap.count; i++) {
       const wx = snap.x[i]!;
       const wy = snap.y[i]!;
+      const atWork = snap.goal[i] === 4; // objectif « work » : à son lieu de travail
       let prof = snap.profession[i]! | 0;
       if (prof < 0 || prof >= this.rigs.length) prof = 0;
       const rig = this.rigs[prof]!;
@@ -453,7 +454,10 @@ export class InhabitantsLayer {
       } else {
         bob = Math.sin(timeSeconds * 2.2 + i * 0.7) * IDLE_BOB;
         lean = 0;
-        const work = WORK[prof];
+        // Le geste de métier ne se joue qu'À un **vrai lieu de travail**
+        // (objectif « work ») : forgeron à la forge, fermier au champ… Ailleurs
+        // (arrêt au foyer, halte de flânerie), l'habitant se contente de respirer.
+        const work = atWork ? WORK[prof] : undefined;
         if (work) {
           const w = 0.5 - 0.5 * Math.cos(timeSeconds * work.freq + i); // 0→1→0, geste répété
           armRa = work.base + work.amp * w;
