@@ -17,6 +17,8 @@ import { groundHeightAt } from "./TerrainMesh";
 const AGENT_HEIGHT = 1.6;
 /** Plafond d'habitants rendus (budget d'instances). */
 const MAX_AGENTS = 4000;
+/** Douceur du virage (0 = figé, 1 = instantané) : rotation naturelle. */
+const TURN_SMOOTHING = 0.18;
 
 /**
  * Teinte des habitants par ère (l'apparence évolue avec l'âge) : peaux et
@@ -49,6 +51,12 @@ export class InhabitantsLayer {
   private readonly meshes: InstancedMesh[] = [];
   private readonly dummy = new Object3D();
   private baseScale = 1;
+  // Orientation « naturelle » : chaque habitant regarde là où il marche, et
+  // tourne en douceur (pas de virage instantané). Suivi de la vitesse par index.
+  private readonly heading = new Float32Array(MAX_AGENTS);
+  private readonly prevX = new Float32Array(MAX_AGENTS);
+  private readonly prevY = new Float32Array(MAX_AGENTS);
+  private primed = false;
 
   private constructor(
     private readonly sim: Simulation,
@@ -126,13 +134,30 @@ export class InhabitantsLayer {
       const idx = counts[m]!;
       if (idx >= MAX_AGENTS) continue;
 
+      // Cap = direction de marche (vitesse depuis la frame précédente), lissé.
+      if (this.primed) {
+        const vx = wx - this.prevX[i]!;
+        const vy = wy - this.prevY[i]!;
+        if (vx * vx + vy * vy > 1e-4) {
+          const desired = Math.atan2(vx, vy);
+          let d = desired - this.heading[i]!;
+          d = Math.atan2(Math.sin(d), Math.cos(d)); // plus court chemin angulaire
+          this.heading[i] = this.heading[i]! + d * TURN_SMOOTHING;
+        }
+      } else {
+        this.heading[i] = Math.atan2(wx - this.prevX[i]!, wy - this.prevY[i]!) || 0;
+      }
+      this.prevX[i] = wx;
+      this.prevY[i] = wy;
+
       this.dummy.position.set(wx, groundHeightAt(terrain, wx, wy), wy);
-      this.dummy.rotation.set(0, ((i * 97) % 360) * (Math.PI / 180), 0);
+      this.dummy.rotation.set(0, this.heading[i]!, 0);
       this.dummy.scale.setScalar(this.baseScale);
       this.dummy.updateMatrix();
       mesh.setMatrixAt(idx, this.dummy.matrix);
       counts[m] = idx + 1;
     }
+    this.primed = true;
 
     for (let m = 0; m < this.meshes.length; m++) {
       this.meshes[m]!.count = counts[m]!;

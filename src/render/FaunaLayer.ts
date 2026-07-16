@@ -14,6 +14,10 @@ import type { Simulation } from "../sim/world/Simulation";
 import { groundHeightAt } from "./TerrainMesh";
 
 const MAX_PER_SPECIES = 600;
+/** Suivi d'orientation : borne large (toutes espèces confondues). */
+const MAX_FAUNA = MAX_PER_SPECIES * 2;
+/** Douceur du virage des bêtes (0 = figé, 1 = instantané). */
+const TURN_SMOOTHING = 0.2;
 /** Hauteur cible par espèce (unités monde ≈ tuiles). */
 const SPECIES_HEIGHT = [1.4, 0.7]; // herbivore (cheval), prédateur (renard)
 
@@ -26,6 +30,12 @@ export class FaunaLayer {
   private readonly meshes: InstancedMesh[] = [];
   private readonly scales: number[] = [];
   private readonly dummy = new Object3D();
+  // Orientation naturelle : chaque bête regarde sa direction de course, en
+  // tournant progressivement. Suivi de la vitesse par index de snapshot.
+  private readonly heading = new Float32Array(MAX_FAUNA);
+  private readonly prevX = new Float32Array(MAX_FAUNA);
+  private readonly prevY = new Float32Array(MAX_FAUNA);
+  private primed = false;
 
   private constructor(
     private readonly sim: Simulation,
@@ -103,13 +113,29 @@ export class FaunaLayer {
       if (idx >= MAX_PER_SPECIES) continue;
       const wx = snap.x[i]!;
       const wy = snap.y[i]!;
+      // Cap = direction de course (vitesse depuis la frame précédente), lissé.
+      if (i < MAX_FAUNA) {
+        if (this.primed) {
+          const vx = wx - this.prevX[i]!;
+          const vy = wy - this.prevY[i]!;
+          if (vx * vx + vy * vy > 1e-4) {
+            const desired = Math.atan2(vx, vy);
+            let d = desired - this.heading[i]!;
+            d = Math.atan2(Math.sin(d), Math.cos(d));
+            this.heading[i] = this.heading[i]! + d * TURN_SMOOTHING;
+          }
+        }
+        this.prevX[i] = wx;
+        this.prevY[i] = wy;
+      }
       this.dummy.position.set(wx, groundHeightAt(terrain, wx, wy), wy);
-      this.dummy.rotation.set(0, ((i * 131) % 360) * (Math.PI / 180), 0);
+      this.dummy.rotation.set(0, this.heading[i < MAX_FAUNA ? i : 0]!, 0);
       this.dummy.scale.setScalar(this.scales[sp]!);
       this.dummy.updateMatrix();
       mesh.setMatrixAt(idx, this.dummy.matrix);
       counts[sp] = idx + 1;
     }
+    this.primed = true;
     for (let s = 0; s < this.meshes.length; s++) {
       this.meshes[s]!.count = counts[s]!;
       this.meshes[s]!.instanceMatrix.needsUpdate = true;
