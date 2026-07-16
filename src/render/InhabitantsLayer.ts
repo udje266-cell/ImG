@@ -17,7 +17,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { PROFESSION_CODES } from "../sim/agents/AgentSystem";
 import { Era } from "../sim/society/EraSystem";
 import type { Simulation } from "../sim/world/Simulation";
-import { groundHeightAt } from "./TerrainMesh";
+import { groundSurfaceAt } from "./TerrainMesh";
 
 /**
  * Hauteur d'un habitant, en unités monde (≈ tuiles). **Délibérément plus basse
@@ -472,7 +472,7 @@ export class InhabitantsLayer {
         }
       }
 
-      const groundY = groundHeightAt(terrain, wx, wy);
+      const groundY = groundSurfaceAt(terrain, wx, wy);
       this.dummy.position.set(wx, groundY + bob, wy);
       this.dummy.rotation.set(lean, this.heading[i]!, sway);
       this.dummy.scale.setScalar(1);

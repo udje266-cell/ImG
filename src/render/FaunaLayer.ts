@@ -11,7 +11,7 @@ import {
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { HERBIVORE, PREDATOR } from "../sim/ecology/FaunaSystem";
 import type { Simulation } from "../sim/world/Simulation";
-import { groundHeightAt } from "./TerrainMesh";
+import { groundSurfaceAt } from "./TerrainMesh";
 
 const MAX_PER_SPECIES = 600;
 /** Suivi d'orientation : borne large (toutes espèces confondues). */
@@ -128,7 +128,7 @@ export class FaunaLayer {
         this.prevX[i] = wx;
         this.prevY[i] = wy;
       }
-      this.dummy.position.set(wx, groundHeightAt(terrain, wx, wy), wy);
+      this.dummy.position.set(wx, groundSurfaceAt(terrain, wx, wy), wy);
       this.dummy.rotation.set(0, this.heading[i < MAX_FAUNA ? i : 0]!, 0);
       this.dummy.scale.setScalar(this.scales[sp]!);
       this.dummy.updateMatrix();

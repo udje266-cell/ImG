@@ -43,6 +43,33 @@ export function groundHeightAt(terrain: TerrainGrid, wx: number, wy: number): nu
   const e = (h - terrain.seaLevel) / LAYER_STEP;
   return (terraceProfile(e) + 0.5) * TERRACE_HEIGHT;
 }
+
+/**
+ * Hauteur de la **surface effectivement dessinée** (maillage facetté) en un
+ * point quelconque. Le maillage a un sommet par tuile (coordonnées entières) et
+ * interpole *linéairement* entre eux ; or `groundHeightAt` évalue le profil de
+ * terrasse de façon *continue* — les deux divergent sur les rebords (jusqu'à
+ * une marche entière d'écart), ce qui faisait « flotter » ou « enfoncer » les
+ * objets posés (bâtiments, habitants, faune, arbres) sur les pentes.
+ *
+ * On reproduit donc EXACTEMENT le maillage : bilinéaire de `groundHeightAt` aux
+ * quatre sommets entiers voisins. Un objet posé à cette hauteur touche
+ * précisément le sol visible, partout. À utiliser pour TOUT ce qui repose sur
+ * le terrain ; `groundHeightAt` reste la source des sommets du maillage.
+ */
+export function groundSurfaceAt(terrain: TerrainGrid, wx: number, wy: number): number {
+  const x0 = Math.floor(wx);
+  const y0 = Math.floor(wy);
+  const fx = wx - x0;
+  const fy = wy - y0;
+  const h00 = groundHeightAt(terrain, x0, y0);
+  const h10 = groundHeightAt(terrain, x0 + 1, y0);
+  const h01 = groundHeightAt(terrain, x0, y0 + 1);
+  const h11 = groundHeightAt(terrain, x0 + 1, y0 + 1);
+  const top = h00 + (h10 - h00) * fx;
+  const bottom = h01 + (h11 - h01) * fx;
+  return top + (bottom - top) * fy;
+}
 /** Assombrissement de la ligne de contour au sommet de chaque rebord. */
 const SEAM_SHADE = 0.7;
 /** Brightening per terrace so high ground reads as high (contraste vertical). */

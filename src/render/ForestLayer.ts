@@ -10,7 +10,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { Rng } from "../core/math/Rng";
 import { BARE_THRESHOLD } from "../sim/ecology/FloraSystem";
 import type { Simulation } from "../sim/world/Simulation";
-import { groundHeightAt } from "./TerrainMesh";
+import { groundSurfaceAt } from "./TerrainMesh";
 
 /**
  * Plafond d'arbres affichés. L'arbre décimé fait ~7,9 k triangles (ses feuilles
@@ -113,7 +113,7 @@ export class ForestLayer {
         if (rng.float() > (density - BARE_THRESHOLD) * 1.3) continue;
 
         const scale = this.baseScale * (0.7 + density * 0.5) * (0.85 + rng.float() * 0.3);
-        this.dummy.position.set(jx, groundHeightAt(terrain, jx, jy), jy);
+        this.dummy.position.set(jx, groundSurfaceAt(terrain, jx, jy), jy);
         this.dummy.rotation.set(0, rng.float() * Math.PI * 2, 0);
         this.dummy.scale.setScalar(scale);
         this.dummy.updateMatrix();

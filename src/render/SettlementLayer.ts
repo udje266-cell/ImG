@@ -20,7 +20,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { Era } from "../sim/society/EraSystem";
 import type { Simulation } from "../sim/world/Simulation";
 import type { BuildingModelSet } from "./BuildingModels";
-import { groundHeightAt } from "./TerrainMesh";
+import { groundSurfaceAt } from "./TerrainMesh";
 
 /**
  * Rendu des villages (docs/TDD.md §4.5) : huttes, totems et champs instanciés,
@@ -489,7 +489,7 @@ export class SettlementLayer {
     for (const d of dwellings) {
       if (h >= MAX_HUTS) break;
       const r = hash01(d.x, d.y);
-      this.dummy.position.set(d.x, groundHeightAt(terrain, d.x, d.y), d.y);
+      this.dummy.position.set(d.x, groundSurfaceAt(terrain, d.x, d.y), d.y);
       this.dummy.rotation.set(0, r * Math.PI * 2, 0);
       this.dummy.scale.setScalar(0.85 + r * 0.4);
       this.dummy.updateMatrix();
@@ -501,7 +501,7 @@ export class SettlementLayer {
     let t = 0;
     for (const v of villages) {
       if (t >= MAX_TOTEMS) break;
-      this.dummy.position.set(v.x, groundHeightAt(terrain, v.x, v.y), v.y);
+      this.dummy.position.set(v.x, groundSurfaceAt(terrain, v.x, v.y), v.y);
       this.dummy.rotation.set(0, hash01(v.x, v.y) * Math.PI * 2, 0);
       this.dummy.scale.setScalar(1);
       this.dummy.updateMatrix();
@@ -513,7 +513,7 @@ export class SettlementLayer {
     let f = 0;
     for (const field of fields) {
       if (f >= MAX_FIELDS) break;
-      this.dummy.position.set(field.x, groundHeightAt(terrain, field.x, field.y), field.y);
+      this.dummy.position.set(field.x, groundSurfaceAt(terrain, field.x, field.y), field.y);
       this.dummy.rotation.set(0, hash01(field.x, field.y) * Math.PI, 0);
       this.dummy.scale.setScalar(1);
       this.dummy.updateMatrix();
@@ -531,7 +531,7 @@ export class SettlementLayer {
       const village = villages[v]!;
       const tx = village.x - 1.6;
       const ty = village.y - 1.4;
-      this.dummy.position.set(tx, groundHeightAt(terrain, tx, ty), ty);
+      this.dummy.position.set(tx, groundSurfaceAt(terrain, tx, ty), ty);
       this.dummy.rotation.set(0, hash01(tx, ty) * Math.PI * 2, 0);
       this.dummy.scale.setScalar(1);
       this.dummy.updateMatrix();
@@ -567,7 +567,7 @@ export class SettlementLayer {
       // Décalé du totem pour former la place du village.
       const fx = v.x + 0.9;
       const fy = v.y + 0.6;
-      const ground = groundHeightAt(terrain, fx, fy);
+      const ground = groundSurfaceAt(terrain, fx, fy);
 
       const fire = new Group();
       fire.position.set(fx, ground, fy);

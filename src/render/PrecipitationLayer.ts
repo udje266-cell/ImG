@@ -9,7 +9,7 @@ import {
 import { Rng } from "../core/math/Rng";
 import { WEATHER_CELL } from "../sim/weather/WeatherSystem";
 import type { Simulation } from "../sim/world/Simulation";
-import { groundHeightAt } from "./TerrainMesh";
+import { groundSurfaceAt } from "./TerrainMesh";
 
 /** Altitude de départ des gouttes (juste sous les nuages, cf. WeatherLayer). */
 const SPAWN_ALTITUDE = 38;
@@ -138,7 +138,7 @@ export class PrecipitationLayer {
     // Départ étagé pour éviter les « vagues » de gouttes synchronisées.
     this.positions[o + 1] = SPAWN_ALTITUDE - this.rng.float() * 10;
     this.positions[o + 2] = wz;
-    this.groundY[i] = Math.max(0, groundHeightAt(this.sim.terrain, wx, wz));
+    this.groundY[i] = Math.max(0, groundSurfaceAt(this.sim.terrain, wx, wz));
     this.snowy[i] = cell.snow ? 1 : 0;
     this.phase[i] = this.rng.float() * Math.PI * 2;
     this.speed[i] = cell.snow
