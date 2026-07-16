@@ -38,8 +38,22 @@ Tous les modèles sont libres d'utilisation commerciale. Détail par fichier :
 - **Traitement** : glTF + `.bin` + atlas partagé fusionnés en `.glb` autonomes (texture embarquée)
   via `gltf-pipeline`, puis normalisés au chargement (pieds au sol, centrés, mis à l'échelle).
 - **Usage** : habitations et monuments-repères instanciés par `SettlementLayer` selon l'ère
-  (Moyen Âge → Futur). Les ères Pierre/Bronze/Fer conservent la géométrie procédurale
+  (Moyen Âge → Moderne). Les ères Pierre/Bronze/Fer conservent la géométrie procédurale
   (aucun modèle CC0 fidèle à ces périodes), et tout échec de chargement retombe sur le procédural.
+
+## `buildings/` (sci-fi) — Kenney : Space Kit (kenney.nl)
+`house_interplanetary.glb` (hangar rond en verre = dôme colonial), `monument_interplanetary.glb`
+(rocket base = pas de tir), `house_galactic.glb` (structure détaillée), `monument_galactic.glb`
+(grande antenne satellite = collecteur stellaire).
+
+- **Auteur** : Kenney — https://www.kenney.nl
+- **Licence** : **CC0 1.0** (domaine public, attribution non obligatoire — voir en-tête `License.txt` du pack)
+- **Source** : Kenney Space Kit 2.0 (www.kenney.nl), `.glb` GLTF récupérés depuis un dépôt public GitHub
+  qui redistribue le pack CC0 tel quel (aucune modification des maillages).
+- **Traitement** : aucun (assets `.glb` autonomes, couleurs portées par les matériaux). Au chargement,
+  `BuildingModels` cuit les couleurs de matériau en couleurs de sommets pour un rendu instancié en une passe.
+- **Usage** : habitations et monuments des ères Interplanétaire (8) et Galactique (9) — dôme + fusée,
+  structure + antenne stellaire.
 
 ## `props/` — modèles fournis par le propriétaire du projet
 `tree.glb`, `terrain-diorama.glb`, `cloud.glb`, `volcano.glb`, `crystal.glb`, `water-surface.glb`

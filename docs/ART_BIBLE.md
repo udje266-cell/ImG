@@ -308,9 +308,11 @@ avec **2 tiers post-`Future` à ajouter** si l'on veut aller jusqu'au galactique
 > **Fait** : l'enum `Era` compte désormais **10 valeurs** (`Interplanetary`,
 > `Galactic` ajoutées), `ERA_COUNT=10`, `LAST_ERA=Galactic`, deux paliers
 > `ERA_KNOWLEDGE` (90000, 130000), politiques *Union des Mondes* / *Fédération
-> Galactique*, métiers, apparences (scaphandre / halo d'énergie) et bâtiments
-> procéduraux (habitat-dôme + ascenseur spatial ; nœud orbital + sphère de
-> Dyson) — côté TypeScript **et** portage C#. Reste ouvert : si l'on veut la
+> Galactique*, métiers, apparences (scaphandre / halo d'énergie) et bâtiments —
+> désormais de **vrais modèles CC0 Kenney Space Kit** (dôme colonial + pas de
+> tir pour l'Interplanétaire ; structure + antenne stellaire pour la
+> Galactique), avec repli procédural — côté TypeScript **et** portage C#.
+> Reste ouvert : si l'on veut la
 > granularité des 15 phases côté gameplay, introduire un **sous-niveau
 > `subEra`** (0/1) par ère de code, purement cosmétique (swap de kit). Les
 > sous-phases (Néolithique, Antiquité, Haut MA, Numérique, Futur proche)
