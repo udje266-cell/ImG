@@ -1,13 +1,19 @@
 import {
+  BoxGeometry,
+  BufferAttribute,
   type BufferGeometry,
   Color,
+  ConeGeometry,
+  CylinderGeometry,
   DynamicDrawUsage,
   InstancedMesh,
   type Material,
-  type MeshStandardMaterial,
+  MeshStandardMaterial,
   Mesh,
   Object3D,
+  SphereGeometry,
 } from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { Era } from "../sim/society/EraSystem";
 import type { Simulation } from "../sim/world/Simulation";
@@ -15,10 +21,77 @@ import { groundHeightAt } from "./TerrainMesh";
 
 /** Hauteur d'un habitant, en unités monde (≈ tuiles). */
 const AGENT_HEIGHT = 1.6;
+/** Hauteur (monde) de la tête, où se pose la coiffe. */
+const HEAD_Y = 1.42;
 /** Plafond d'habitants rendus (budget d'instances). */
 const MAX_AGENTS = 4000;
 /** Douceur du virage (0 = figé, 1 = instantané) : rotation naturelle. */
 const TURN_SMOOTHING = 0.18;
+
+/** Peint une géométrie d'une couleur unie (vertex colors). */
+function paintGeo(geo: BufferGeometry, hex: number): BufferGeometry {
+  const c = new Color(hex);
+  const n = geo.attributes.position!.count;
+  const colors = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute("color", new BufferAttribute(colors, 3));
+  return geo;
+}
+
+/**
+ * Coiffe/casque par ère (l'apparence des personnages évolue avec l'âge — comme
+ * dans les jeux à ères type Forge of Empires / Age of Empires) : capuche de
+ * fourrure (Pierre) → bandeau (Bronze) → casque de bronze (Fer) → chaperon
+ * (Moyen Âge) → chapeau à plume (Renaissance) → haut-de-forme (Industrielle) →
+ * casque de chantier (Moderne) → visière lumineuse (Futur). Posée sur la tête
+ * de chaque habitant. Géométrie authorée en unités monde (indépendante de
+ * l'échelle du modèle).
+ */
+function makeHeadwear(era: Era): BufferGeometry {
+  const parts: BufferGeometry[] = [];
+  const add = (g: BufferGeometry, hex: number, tf?: (g: BufferGeometry) => void): void => {
+    if (tf) tf(g);
+    paintGeo(g, hex);
+    parts.push(g);
+  };
+  switch (era) {
+    case Era.Stone: // capuche de fourrure
+      add(new SphereGeometry(0.14, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0x5a4632, (g) => g.translate(0, 0, 0));
+      break;
+    case Era.Bronze: // bandeau de lin
+      add(new CylinderGeometry(0.14, 0.14, 0.06, 10), 0xcdb489, (g) => g.translate(0, 0.02, 0));
+      break;
+    case Era.Iron: // casque de bronze + cimier
+      add(new SphereGeometry(0.15, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0xb87333, (g) => g.translate(0, 0, 0));
+      add(new BoxGeometry(0.04, 0.1, 0.24), 0x8a4f22, (g) => g.translate(0, 0.12, 0)); // crête
+      break;
+    case Era.Medieval: // chaperon pointu
+      add(new ConeGeometry(0.15, 0.26, 8), 0x6a4a7a, (g) => g.translate(0, 0.11, 0));
+      break;
+    case Era.Renaissance: // chapeau à large bord + plume
+      add(new CylinderGeometry(0.24, 0.24, 0.03, 12), 0x3a2b1a, (g) => g.translate(0, 0.02, 0)); // bord
+      add(new CylinderGeometry(0.14, 0.15, 0.14, 12), 0x4a3524, (g) => g.translate(0, 0.1, 0)); // calotte
+      add(new BoxGeometry(0.02, 0.02, 0.24), 0xcf4040, (g) => { g.rotateX(0.5); g.translate(0.06, 0.18, -0.1); }); // plume
+      break;
+    case Era.Industrial: // haut-de-forme
+      add(new CylinderGeometry(0.2, 0.2, 0.03, 12), 0x1e1a18, (g) => g.translate(0, 0.02, 0)); // bord
+      add(new CylinderGeometry(0.13, 0.13, 0.26, 12), 0x211d1a, (g) => g.translate(0, 0.17, 0)); // cylindre
+      break;
+    case Era.Modern: // casque de chantier
+      add(new SphereGeometry(0.16, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0xf1c40f, (g) => g.translate(0, 0, 0));
+      add(new BoxGeometry(0.34, 0.03, 0.14), 0xf1c40f, (g) => g.translate(0, 0.01, 0.08)); // visière
+      break;
+    case Era.Future: // casque à visière lumineuse
+      add(new SphereGeometry(0.16, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0xd8e6f2, (g) => g.translate(0, 0, 0));
+      add(new BoxGeometry(0.28, 0.08, 0.06), 0x4fe6ff, (g) => g.translate(0, 0.04, 0.13)); // visière cyan
+      break;
+  }
+  return mergeGeometries(parts, false)!;
+}
 
 /**
  * Teinte des habitants par ère (l'apparence évolue avec l'âge) : peaux et
@@ -57,6 +130,8 @@ export class InhabitantsLayer {
   private readonly prevX = new Float32Array(MAX_AGENTS);
   private readonly prevY = new Float32Array(MAX_AGENTS);
   private primed = false;
+  /** Coiffe par ère, posée sur chaque tête (silhouette qui évolue avec l'âge). */
+  private headwear!: InstancedMesh;
 
   private constructor(
     private readonly sim: Simulation,
@@ -75,9 +150,22 @@ export class InhabitantsLayer {
       this.meshes.push(mesh);
       addToScene(mesh);
     }
-    // Apparence de départ + ré-teinte à chaque changement d'ère.
+    // Coiffe d'ère (posée sur les têtes) : maillage instancié dédié.
+    const headMat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.7, flatShading: true });
+    this.headwear = new InstancedMesh(makeHeadwear(sim.era.era), headMat, MAX_AGENTS);
+    this.headwear.instanceMatrix.setUsage(DynamicDrawUsage);
+    this.headwear.frustumCulled = false;
+    this.headwear.castShadow = true;
+    this.headwear.count = 0;
+    addToScene(this.headwear);
+
+    // Apparence de départ + ré-teinte / re-coiffe à chaque changement d'ère.
     this.applyEraTint(sim.era.era);
-    sim.bus.on("era:advanced", ({ era }) => this.applyEraTint(era as Era));
+    sim.bus.on("era:advanced", ({ era }) => {
+      this.applyEraTint(era as Era);
+      this.headwear.geometry.dispose();
+      this.headwear.geometry = makeHeadwear(era as Era);
+    });
   }
 
   /** Teinte tous les modèles d'habitants selon l'ère (multiplie la texture). */
@@ -124,6 +212,7 @@ export class InhabitantsLayer {
     const terrain = this.sim.terrain;
     const modelCount = this.meshes.length || 1;
     const counts = new Array(this.meshes.length).fill(0);
+    let hw = 0; // compteur de coiffes posées
 
     for (let i = 0; i < snap.count && counts[0]! + counts[1 % modelCount]! < MAX_AGENTS * modelCount; i++) {
       const wx = snap.x[i]!;
@@ -150,11 +239,20 @@ export class InhabitantsLayer {
       this.prevX[i] = wx;
       this.prevY[i] = wy;
 
-      this.dummy.position.set(wx, groundHeightAt(terrain, wx, wy), wy);
+      const groundY = groundHeightAt(terrain, wx, wy);
+      this.dummy.position.set(wx, groundY, wy);
       this.dummy.rotation.set(0, this.heading[i]!, 0);
       this.dummy.scale.setScalar(this.baseScale);
       this.dummy.updateMatrix();
       mesh.setMatrixAt(idx, this.dummy.matrix);
+
+      // Coiffe d'ère posée sur la tête (même cap, échelle monde).
+      this.dummy.position.set(wx, groundY + HEAD_Y, wy);
+      this.dummy.scale.setScalar(1);
+      this.dummy.updateMatrix();
+      this.headwear.setMatrixAt(hw, this.dummy.matrix);
+      hw++;
+
       counts[m] = idx + 1;
     }
     this.primed = true;
@@ -163,5 +261,7 @@ export class InhabitantsLayer {
       this.meshes[m]!.count = counts[m]!;
       this.meshes[m]!.instanceMatrix.needsUpdate = true;
     }
+    this.headwear.count = hw;
+    this.headwear.instanceMatrix.needsUpdate = true;
   }
 }

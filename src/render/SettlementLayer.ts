@@ -77,67 +77,105 @@ function makeHouseGeometry(era: Era): BufferGeometry {
     paint(g, hex);
     parts.push(g);
   };
+  // Ouvertures : fenêtre/porte affleurant une façade (fine dans l'axe indiqué).
+  const winZ = (x: number, y: number, z: number, hex = 0x2b3138, w = 0.15, h = 0.2): void =>
+    push(new BoxGeometry(w, h, 0.05), hex, (g) => g.translate(x, y, z));
+  const winX = (x: number, y: number, z: number, hex = 0x2b3138, d = 0.15, h = 0.2): void =>
+    push(new BoxGeometry(0.05, h, d), hex, (g) => g.translate(x, y, z));
+  const door = (z: number, hex = 0x3a2a1a, w = 0.2, h = 0.34): void =>
+    push(new BoxGeometry(w, h, 0.05), hex, (g) => g.translate(0, h / 2 + 0.02, z));
+
   switch (era) {
     case Era.Stone: {
-      push(new CylinderGeometry(0.52, 0.56, 0.2, 9), 0x8f8a80, (g) => g.translate(0, 0.1, 0)); // soubassement
-      push(new CylinderGeometry(0.42, 0.5, 0.5, 9), 0x9c6b43, (g) => g.translate(0, 0.45, 0)); // torchis
-      push(new ConeGeometry(0.7, 0.7, 9), 0xc9a35c, (g) => g.translate(0, 1.05, 0)); // chaume
+      // Hutte ronde néolithique : soubassement de pierre, torchis, chaume, porte basse.
+      push(new CylinderGeometry(0.52, 0.56, 0.2, 10), 0x8f8a80, (g) => g.translate(0, 0.1, 0));
+      push(new CylinderGeometry(0.42, 0.5, 0.5, 10), 0x9c6b43, (g) => g.translate(0, 0.45, 0));
+      push(new ConeGeometry(0.7, 0.72, 10), 0xc9a35c, (g) => g.translate(0, 1.06, 0)); // chaume
+      push(new BoxGeometry(0.22, 0.34, 0.06), 0x2a1e12, (g) => g.translate(0, 0.3, 0.46)); // entrée
+      push(new CylinderGeometry(0.02, 0.02, 0.5, 4), 0x5a3c22, (g) => g.translate(0, 1.35, 0)); // épi de faîtage
       break;
     }
     case Era.Bronze: {
-      push(new BoxGeometry(0.9, 0.7, 0.9), 0xba8b5c, (g) => g.translate(0, 0.35, 0)); // adobe
-      push(new ConeGeometry(0.78, 0.42, 4), 0x7d5535, (g) => {
-        g.rotateY(Math.PI / 4);
-        g.translate(0, 0.9, 0);
-      });
+      // Maison d'adobe à toit plat (antiquité mésopotamienne) : parapet, poutres, terrasse.
+      push(new BoxGeometry(0.92, 0.78, 0.92), 0xc39a68, (g) => g.translate(0, 0.4, 0)); // briques crues
+      push(new BoxGeometry(0.98, 0.1, 0.98), 0x9c7a4e, (g) => g.translate(0, 0.82, 0)); // toit-terrasse
+      for (const s of [-1, 1]) push(new BoxGeometry(0.98, 0.12, 0.06), 0xa8845a, (g) => g.translate(0, 0.86, s * 0.48)); // parapet
+      for (let k = -1; k <= 1; k++) push(new CylinderGeometry(0.03, 0.03, 0.24, 5), 0x6b4a2f, (g) => { g.rotateX(Math.PI / 2); g.translate(k * 0.28, 0.7, 0.53); }); // poutres saillantes
+      door(0.47, 0x4a3320);
+      winX(-0.47, 0.5, 0.2, 0x2b241a);
+      winX(0.47, 0.5, -0.2, 0x2b241a);
       break;
     }
     case Era.Iron: {
-      push(new BoxGeometry(0.95, 0.95, 0.9), 0x8f8d88, (g) => g.translate(0, 0.48, 0)); // pierre taillée
-      push(gableRoof(0.7, 0.55, 0.72), 0xa14a33, (g) => g.translate(0, 1.2, 0)); // tuiles
-      push(new BoxGeometry(0.14, 0.4, 0.14), 0x6f6a63, (g) => g.translate(0.28, 1.25, 0.22)); // cheminée
+      // Domus romaine : pierre, toit de tuiles, portique à colonnes, fenêtres.
+      push(new BoxGeometry(0.96, 0.9, 0.9), 0xb9b3a6, (g) => g.translate(0, 0.47, 0)); // pierre claire
+      push(gableRoof(0.72, 0.5, 0.72), 0xa14a33, (g) => g.translate(0, 1.15, 0)); // tuiles terre cuite
+      push(new BoxGeometry(0.14, 0.42, 0.14), 0x8a5a3a, (g) => g.translate(0.3, 1.2, -0.2)); // cheminée
+      for (const sx of [-0.26, 0.26]) push(new CylinderGeometry(0.06, 0.06, 0.6, 8), 0xe8e0d0, (g) => g.translate(sx, 0.35, 0.5)); // colonnes du portique
+      push(new BoxGeometry(0.72, 0.1, 0.16), 0xd8cfbc, (g) => g.translate(0, 0.68, 0.5)); // linteau
+      door(0.46, 0x5a3c22);
+      winZ(-0.28, 0.55, 0.46, 0x2b3138);
+      winZ(0.28, 0.55, 0.46, 0x2b3138);
+      winX(-0.49, 0.55, 0, 0x2b3138);
+      winX(0.49, 0.55, 0, 0x2b3138);
       break;
     }
     case Era.Medieval: {
-      // Colombage : rez en pierre, étage en encorbellement clair + poutres sombres.
-      push(new BoxGeometry(0.9, 0.55, 0.8), 0x9a8e7a, (g) => g.translate(0, 0.28, 0)); // rez
-      push(new BoxGeometry(1.02, 0.55, 0.92), 0xe4dcc6, (g) => g.translate(0, 0.83, 0)); // étage encorbellé (torchis)
-      // Poutres d'angle (bois foncé).
-      for (const sx of [-1, 1])
-        for (const sz of [-1, 1])
-          push(new BoxGeometry(0.09, 0.6, 0.09), 0x4a3524, (g) => g.translate(sx * 0.46, 0.83, sz * 0.41));
+      // Colombage : rez de pierre, étage en encorbellement, poutres, croix de Saint-André, lucarne.
+      push(new BoxGeometry(0.9, 0.55, 0.8), 0x9a8e7a, (g) => g.translate(0, 0.28, 0)); // rez de pierre
+      push(new BoxGeometry(1.02, 0.55, 0.92), 0xe4dcc6, (g) => g.translate(0, 0.83, 0)); // étage torchis
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) push(new BoxGeometry(0.09, 0.6, 0.09), 0x4a3524, (g) => g.translate(sx * 0.46, 0.83, sz * 0.41)); // poteaux d'angle
       push(new BoxGeometry(1.04, 0.08, 0.94), 0x4a3524, (g) => g.translate(0, 0.56, 0)); // sablière
-      push(gableRoof(0.78, 0.9, 0.62), 0x584a3a, (g) => g.translate(0, 1.45, 0)); // ardoise pentue
+      for (const sx of [-1, 1]) push(new BoxGeometry(0.5, 0.07, 0.07), 0x4a3524, (g) => { g.rotateZ(sx * 0.9); g.translate(sx * 0.24, 0.83, 0.47); }); // croix de Saint-André
+      push(gableRoof(0.78, 0.92, 0.62), 0x584a3a, (g) => g.translate(0, 1.46, 0)); // ardoise pentue
+      push(gableRoof(0.16, 0.22, 0.3), 0x6a5a48, (g) => { g.rotateY(Math.PI / 2); g.translate(0, 1.4, 0.4); }); // lucarne
+      door(0.41, 0x3a2a1a);
+      winZ(-0.28, 0.85, 0.47, 0xbcae90);
+      winZ(0.28, 0.85, 0.47, 0xbcae90);
       break;
     }
     case Era.Renaissance: {
-      push(new BoxGeometry(1.0, 1.4, 0.9), 0xd8cbb0, (g) => g.translate(0, 0.7, 0)); // pierre régulière
+      // Demeure de pierre régulière à deux niveaux : corniche, toit en croupe, rangées de fenêtres.
+      push(new BoxGeometry(1.0, 1.4, 0.92), 0xd8cbb0, (g) => g.translate(0, 0.7, 0)); // pierre de taille
+      push(new BoxGeometry(1.06, 0.16, 0.98), 0xbfae8c, (g) => g.translate(0, 0.72, 0)); // bandeau d'étage
       push(new BoxGeometry(1.12, 0.12, 1.02), 0xc2b393, (g) => g.translate(0, 1.42, 0)); // corniche
-      push(new ConeGeometry(0.82, 0.45, 4), 0xb5643c, (g) => {
-        g.rotateY(Math.PI / 4);
-        g.translate(0, 1.72, 0);
-      }); // toit de tuiles en croupe
+      push(new ConeGeometry(0.82, 0.5, 4), 0xb5643c, (g) => { g.rotateY(Math.PI / 4); g.translate(0, 1.74, 0); }); // toit de tuiles en croupe
+      push(new BoxGeometry(0.12, 0.34, 0.12), 0x9a7050, (g) => g.translate(0.34, 1.7, -0.2)); // cheminée
+      for (const y of [0.5, 1.05]) for (const x of [-0.3, 0.3]) winZ(x, y, 0.47, 0x2b3440, 0.15, 0.26); // fenêtres alignées (2 niveaux)
+      for (const y of [0.5, 1.05]) { winX(-0.51, y, 0, 0x2b3440, 0.15, 0.26); winX(0.51, y, 0, 0x2b3440, 0.15, 0.26); }
+      push(new BoxGeometry(0.26, 0.12, 0.06), 0xbfae8c, (g) => g.translate(0, 0.62, 0.47)); // fronton de porte
+      door(0.47, 0x4a3524, 0.22, 0.4);
       break;
     }
     case Era.Industrial: {
-      push(new BoxGeometry(1.0, 1.0, 0.9), 0x8a4b3a, (g) => g.translate(0, 0.5, 0)); // brique rouge
-      push(gableRoof(0.72, 0.5, 0.55), 0x45454e, (g) => g.translate(0, 1.2, 0)); // ardoise
-      push(new CylinderGeometry(0.13, 0.16, 1.7, 8), 0x6e4436, (g) => g.translate(0.38, 0.85, -0.3)); // cheminée d'usine
-      push(new CylinderGeometry(0.16, 0.16, 0.12, 8), 0x2c2622, (g) => g.translate(0.38, 1.7, -0.3)); // couronne suie
+      // Bâtisse victorienne : brique rouge, toit d'ardoise, grille de fenêtres à guillotine, cheminée d'usine.
+      push(new BoxGeometry(1.0, 1.3, 0.9), 0x8a4b3a, (g) => g.translate(0, 0.65, 0)); // brique rouge
+      push(gableRoof(0.72, 0.5, 0.55), 0x45454e, (g) => g.translate(0, 1.5, 0)); // ardoise
+      push(new CylinderGeometry(0.13, 0.16, 1.9, 8), 0x6e4436, (g) => g.translate(0.4, 0.95, -0.3)); // cheminée d'usine
+      push(new CylinderGeometry(0.17, 0.17, 0.12, 8), 0x2c2622, (g) => g.translate(0.4, 1.9, -0.3)); // couronne de suie
+      for (const y of [0.5, 0.95]) for (const x of [-0.3, 0, 0.3]) winZ(x, y, 0.46, 0x9fb6c8, 0.14, 0.24); // fenêtres à guillotine
+      for (const y of [0.5, 0.95]) { winX(-0.51, y, -0.05, 0x9fb6c8, 0.14, 0.24); winX(0.51, y, -0.05, 0x9fb6c8, 0.14, 0.24); }
+      door(0.46, 0x2f2018, 0.22, 0.42);
       break;
     }
     case Era.Modern: {
-      push(new BoxGeometry(0.95, 1.8, 0.95), 0xa8adb2, (g) => g.translate(0, 0.9, 0)); // béton
-      for (const y of [0.55, 1.0, 1.45])
-        push(new BoxGeometry(0.99, 0.2, 0.99), 0x5c86b0, (g) => g.translate(0, y, 0)); // bandes vitrées
-      push(new BoxGeometry(1.0, 0.1, 1.0), 0x8a8f94, (g) => g.translate(0, 1.83, 0)); // toit plat
+      // Immeuble béton & verre : mur-rideau, grille de fenêtres, toit plat, édicule technique.
+      push(new BoxGeometry(0.95, 1.9, 0.95), 0xb2b7bc, (g) => g.translate(0, 0.95, 0)); // béton
+      for (const y of [0.55, 1.0, 1.45]) push(new BoxGeometry(0.99, 0.24, 0.99), 0x6f9fc8, (g) => g.translate(0, y, 0)); // bandes vitrées
+      for (const y of [0.55, 1.0, 1.45]) for (const x of [-0.28, 0.28]) push(new BoxGeometry(0.02, 0.22, 0.99), 0xc8ced2, (g) => g.translate(x, y, 0)); // meneaux
+      push(new BoxGeometry(1.0, 0.1, 1.0), 0x8a8f94, (g) => g.translate(0, 1.92, 0)); // acrotère (toit plat)
+      push(new BoxGeometry(0.34, 0.22, 0.34), 0x9aa0a5, (g) => g.translate(0.2, 2.03, -0.15)); // édicule technique
+      push(new BoxGeometry(0.3, 0.4, 0.06), 0x2b3440, (g) => g.translate(0, 0.2, 0.48)); // entrée vitrée
       break;
     }
     case Era.Future: {
-      push(new CylinderGeometry(0.34, 0.62, 2.2, 6), 0xdfe9f2, (g) => g.translate(0, 1.1, 0)); // tour effilée
-      push(new CylinderGeometry(0.5, 0.5, 0.12, 6), 0x4fe6ff, (g) => g.translate(0, 1.55, 0)); // anneau lumineux
-      push(new ConeGeometry(0.3, 0.5, 6), 0xeaf4ff, (g) => g.translate(0, 2.45, 0)); // sommet
-      push(new CylinderGeometry(0.03, 0.03, 0.5, 4), 0x4fe6ff, (g) => g.translate(0, 2.9, 0)); // antenne
+      // Tour arcologie : verre effilé, nervures et anneau lumineux cyan, antenne, entrée irisée.
+      push(new CylinderGeometry(0.32, 0.58, 2.3, 6), 0xdfe9f2, (g) => g.translate(0, 1.15, 0)); // fût de verre
+      for (let k = 0; k < 6; k++) push(new BoxGeometry(0.035, 2.2, 0.035), 0x8fd8ff, (g) => { const a = (k / 6) * Math.PI * 2; g.translate(Math.cos(a) * 0.5, 1.15, Math.sin(a) * 0.5); }); // nervures lumineuses
+      push(new CylinderGeometry(0.52, 0.52, 0.12, 12), 0x4fe6ff, (g) => g.translate(0, 1.55, 0)); // anneau d'énergie
+      push(new ConeGeometry(0.28, 0.5, 6), 0xeaf4ff, (g) => g.translate(0, 2.55, 0)); // sommet
+      push(new CylinderGeometry(0.025, 0.025, 0.5, 4), 0x4fe6ff, (g) => g.translate(0, 3.0, 0)); // antenne
+      push(new BoxGeometry(0.26, 0.4, 0.06), 0x7fe8ff, (g) => g.translate(0, 0.24, 0.5)); // entrée irisée
       break;
     }
   }
