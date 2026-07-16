@@ -117,7 +117,7 @@ function boot(): void {
       "models/characters/prehistoric-man.glb",
       "models/characters/prehistoric-woman.glb",
     ]);
-    renderer.enableSettlements();
+    void renderer.enableSettlements();
     if (sim.fauna.count === 0) sim.fauna.populate(80, 12); // herbivores, prédateurs
     void renderer.enableFauna(sim, ["models/animals/Horse.glb", "models/animals/Fox.glb"]);
   }

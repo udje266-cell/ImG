@@ -19,6 +19,7 @@ import {
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { Era } from "../sim/society/EraSystem";
 import type { Simulation } from "../sim/world/Simulation";
+import type { BuildingModelSet } from "./BuildingModels";
 import { groundHeightAt } from "./TerrainMesh";
 
 /**
@@ -355,6 +356,8 @@ export class SettlementLayer {
   private readonly totems: InstancedMesh;
   private readonly fieldsMesh: InstancedMesh;
   private readonly temples: InstancedMesh;
+  /** Matériau des géométries procédurales (huttes/monuments sans modèle réel). */
+  private readonly proceduralMat: MeshStandardMaterial;
   /** Feux de camp (un par village) : flammes, braises, fumée et lumière. */
   private readonly fires = new Group();
   private readonly firesAnim: Array<{
@@ -369,11 +372,16 @@ export class SettlementLayer {
   constructor(
     private readonly sim: Simulation,
     addToScene: (obj: Object3D) => void,
+    /** Modèles 3D réels par ère (facultatif) — repli procédural si absent. */
+    private readonly models?: BuildingModelSet,
   ) {
     const mat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true });
+    this.proceduralMat = mat;
     const era = sim.era.era;
-    this.huts = new InstancedMesh(makeHouseGeometry(era), mat, MAX_HUTS);
-    this.totems = new InstancedMesh(makeMonumentGeometry(era), mat, MAX_TOTEMS);
+    const house = this.houseFor(era);
+    const monument = this.monumentFor(era);
+    this.huts = new InstancedMesh(house.geometry, house.material, MAX_HUTS);
+    this.totems = new InstancedMesh(monument.geometry, monument.material, MAX_TOTEMS);
     this.fieldsMesh = new InstancedMesh(makeFieldGeometry(), mat, MAX_FIELDS);
     this.temples = new InstancedMesh(makeTempleGeometry(), mat, MAX_TEMPLES);
     for (const m of [this.huts, this.totems, this.fieldsMesh, this.temples]) {
@@ -391,13 +399,35 @@ export class SettlementLayer {
     sim.bus.on("era:advanced", () => this.rebuildForEra());
   }
 
-  /** Remplace la géométrie des habitations et monuments par celle de l'ère. */
+  /**
+   * Habitation de l'ère : modèle 3D réel (CC0) si disponible, sinon géométrie
+   * procédurale. La géométrie du modèle est clonée pour que la disposition au
+   * changement d'ère ne détruise pas l'asset partagé.
+   */
+  private houseFor(era: Era): { geometry: BufferGeometry; material: MeshStandardMaterial } {
+    const m = this.models?.houses.get(era);
+    if (m) return { geometry: m.geometry.clone(), material: m.material as MeshStandardMaterial };
+    return { geometry: makeHouseGeometry(era), material: this.proceduralMat };
+  }
+
+  /** Monument-repère de l'ère : modèle réel si disponible, sinon procédural. */
+  private monumentFor(era: Era): { geometry: BufferGeometry; material: MeshStandardMaterial } {
+    const m = this.models?.monuments.get(era);
+    if (m) return { geometry: m.geometry.clone(), material: m.material as MeshStandardMaterial };
+    return { geometry: makeMonumentGeometry(era), material: this.proceduralMat };
+  }
+
+  /** Remplace géométrie ET matériau des habitations et monuments pour l'ère. */
   private rebuildForEra(): void {
     const era = this.sim.era.era;
+    const house = this.houseFor(era);
     this.huts.geometry.dispose();
-    this.huts.geometry = makeHouseGeometry(era);
+    this.huts.geometry = house.geometry;
+    this.huts.material = house.material;
+    const monument = this.monumentFor(era);
     this.totems.geometry.dispose();
-    this.totems.geometry = makeMonumentGeometry(era);
+    this.totems.geometry = monument.geometry;
+    this.totems.material = monument.material;
     this.build();
   }
 

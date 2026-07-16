@@ -24,6 +24,23 @@ Tous les modèles sont libres d'utilisation commerciale. Détail par fichier :
 - **Traitement** : décimés (~1,9 M tris, ~56 Mo) → ~15 k tris (2,4–2,9 Mo) via `tools/decimate-model.mjs`.
 - **Usage** : habitants de l'âge de pierre (base des futurs habitants). Statiques (pas de rig d'animation).
 
+## `buildings/` — KayKit : bâtiments par ère (Kay Lousberg)
+`house_medieval.glb`, `house_renaissance.glb`, `monument_medieval.glb`, `monument_renaissance.glb`
+(depuis **KayKit Medieval Hexagon Pack 1.0**) et `house_industrial.glb`, `house_modern.glb`,
+`house_future.glb`, `monument_industrial.glb`, `monument_modern.glb`
+(depuis **KayKit City Builder Bits 1.0**).
+
+- **Auteur** : Kay Lousberg — https://www.kaylousberg.com
+- **Licence** : **CC0 1.0** (domaine public, attribution non obligatoire)
+- **Sources** :
+  - https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0
+  - https://github.com/KayKit-Game-Assets/KayKit-City-Builder-Bits-1.0
+- **Traitement** : glTF + `.bin` + atlas partagé fusionnés en `.glb` autonomes (texture embarquée)
+  via `gltf-pipeline`, puis normalisés au chargement (pieds au sol, centrés, mis à l'échelle).
+- **Usage** : habitations et monuments-repères instanciés par `SettlementLayer` selon l'ère
+  (Moyen Âge → Futur). Les ères Pierre/Bronze/Fer conservent la géométrie procédurale
+  (aucun modèle CC0 fidèle à ces périodes), et tout échec de chargement retombe sur le procédural.
+
 ## `props/` — modèles fournis par le propriétaire du projet
 `tree.glb`, `terrain-diorama.glb`, `cloud.glb`, `volcano.glb`, `crystal.glb`, `water-surface.glb`
 

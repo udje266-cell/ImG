@@ -27,6 +27,7 @@ import { Water } from "./Water";
 import { FaunaLayer } from "./FaunaLayer";
 import { ForestLayer } from "./ForestLayer";
 import { InhabitantsLayer } from "./InhabitantsLayer";
+import { BuildingModelSet } from "./BuildingModels";
 import { SettlementLayer } from "./SettlementLayer";
 import { Showcase } from "./Showcase";
 import { TerrainMesh } from "./TerrainMesh";
@@ -243,9 +244,14 @@ export class SceneRenderer {
     this.faunaLayer = await FaunaLayer.create(sim, urls, (mesh) => this.scene.add(mesh));
   }
 
-  /** Pose huttes, totems, champs et feux de camp (villages déjà fondés). */
-  enableSettlements(): void {
-    this.settlements = new SettlementLayer(this.sim, (obj) => this.scene.add(obj));
+  /**
+   * Pose huttes, totems, champs et feux de camp (villages déjà fondés). Charge
+   * d'abord les modèles 3D réels des bâtiments par ère (repli procédural si le
+   * chargement échoue), puis construit la couche.
+   */
+  async enableSettlements(): Promise<void> {
+    const models = await BuildingModelSet.load().catch(() => undefined);
+    this.settlements = new SettlementLayer(this.sim, (obj) => this.scene.add(obj), models);
   }
 
   /** Nombre de huttes posées (-1 si les villages ne sont pas rendus) — debug. */
