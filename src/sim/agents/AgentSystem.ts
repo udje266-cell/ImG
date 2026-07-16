@@ -118,7 +118,9 @@ export interface AgentSnapshot {
 }
 
 const GOAL_CODES: Record<Goal, number> = { forage: 0, rest: 1, wander: 2, worship: 3 };
-const PROFESSION_CODES: Record<Profession, number> = {
+/** Code numérique d'un métier dans le snapshot (index = code). Exporté pour que
+ *  le rendu (accessoires par métier) reste synchrone avec la simulation. */
+export const PROFESSION_CODES: Record<Profession, number> = {
   hunter: 0, farmer: 1, smith: 2, priest: 3, merchant: 4, warrior: 5, scholar: 6, worker: 7, engineer: 8,
 };
 
