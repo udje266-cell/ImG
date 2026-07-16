@@ -89,6 +89,16 @@ function makeHeadwear(era: Era): BufferGeometry {
       add(new SphereGeometry(0.16, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0xd8e6f2, (g) => g.translate(0, 0, 0));
       add(new BoxGeometry(0.28, 0.08, 0.06), 0x4fe6ff, (g) => g.translate(0, 0.04, 0.13)); // visière cyan
       break;
+    case Era.Interplanetary: // casque de scaphandre : bulle + col + visière
+      add(new SphereGeometry(0.18, 14, 10), 0xdfeaf2, (g) => g.translate(0, 0.06, 0)); // bulle pressurisée
+      add(new SphereGeometry(0.155, 12, 8, 0, Math.PI * 2, Math.PI / 2.6, Math.PI / 2.2), 0x2b6f8f, (g) => g.translate(0, 0.06, 0.02)); // visière teintée
+      add(new CylinderGeometry(0.16, 0.16, 0.05, 12), 0xa9b6bd, (g) => g.translate(0, -0.06, 0)); // col d'étanchéité
+      break;
+    case Era.Galactic: // halo d'énergie flottant (post-humain lumineux)
+      add(new SphereGeometry(0.13, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0xece0ff, (g) => g.translate(0, 0, 0)); // calotte irisée
+      add(new CylinderGeometry(0.22, 0.22, 0.02, 20), 0xb98cff, (g) => g.translate(0, 0.18, 0)); // anneau flottant
+      add(new SphereGeometry(0.035, 8, 6), 0xe6b8ff, (g) => g.translate(0, 0.28, 0)); // point de lumière
+      break;
   }
   return mergeGeometries(parts, false)!;
 }
@@ -109,6 +119,8 @@ const ERA_TINT: Record<Era, number> = {
   [Era.Industrial]: 0x5c666e, // gris ouvrier
   [Era.Modern]: 0x4f83ad, // vêtements modernes
   [Era.Future]: 0xc8e6ff, // combinaisons claires
+  [Era.Interplanetary]: 0x9fd0e8, // scaphandres acier-cyan
+  [Era.Galactic]: 0xe4d6ff, // tenues iridescentes (post-humain lumineux)
 };
 
 /**

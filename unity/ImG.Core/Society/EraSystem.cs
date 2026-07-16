@@ -2,7 +2,7 @@ using ImG.Core.Events;
 
 namespace ImG.Core.Society
 {
-    /// <summary>Les huit grands âges de la civilisation (de la pierre au futur).</summary>
+    /// <summary>Les dix grands âges de la civilisation (de la pierre à la galaxie).</summary>
     public enum Era
     {
         Stone = 0,
@@ -13,6 +13,8 @@ namespace ImG.Core.Society
         Industrial = 5,
         Modern = 6,
         Future = 7,
+        Interplanetary = 8,
+        Galactic = 9,
     }
 
     /// <summary>Charge utile de l'événement « changement d'ère ».</summary>
@@ -54,12 +56,12 @@ namespace ImG.Core.Society
     /// </summary>
     public sealed class EraSystem
     {
-        public const int EraCount = 8;
+        public const int EraCount = 10;
         /// <summary>Dernière ère (borne haute).</summary>
-        public const Era LastEra = Era.Future;
+        public const Era LastEra = Era.Galactic;
 
         /// <summary>Savoir cumulé requis pour ATTEINDRE chaque ère (index = ère).</summary>
-        public static readonly double[] EraKnowledge = { 0, 500, 2200, 6000, 12000, 22000, 38000, 60000 };
+        public static readonly double[] EraKnowledge = { 0, 500, 2200, 6000, 12000, 22000, 38000, 60000, 90000, 130000 };
 
         public static readonly EraInfo[] Info =
         {
@@ -71,6 +73,8 @@ namespace ImG.Core.Society
             new EraInfo("Révolution Industrielle", "Nation", "🏭"),
             new EraInfo("Époque Moderne", "République", "🏙️"),
             new EraInfo("Futur", "Fédération", "🚀"),
+            new EraInfo("Ère Interplanétaire", "Union des Mondes", "🪐"),
+            new EraInfo("Ère Galactique", "Fédération Galactique", "🌌"),
         };
 
         /// <summary>Cadence (ticks) d'accumulation du Savoir.</summary>
@@ -92,7 +96,7 @@ namespace ImG.Core.Society
         public Era Era => _era;
         public EraInfo CurrentInfo => Info[(int)_era];
 
-        /// <summary>Progression [0, 1] vers l'ère suivante (1 si déjà à l'âge du fer).</summary>
+        /// <summary>Progression [0, 1] vers l'ère suivante (1 si déjà à la dernière ère, la Galactique).</summary>
         public double Progress
         {
             get

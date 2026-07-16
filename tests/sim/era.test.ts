@@ -5,7 +5,7 @@ import { Era, ERA_COUNT, ERA_INFO, ERA_KNOWLEDGE, EraSystem } from "../../src/si
 import { loadSimulation, serializeSimulation } from "../../src/sim/save/save";
 import { Simulation } from "../../src/sim/world/Simulation";
 
-describe("EraSystem — les huit âges de l'humanité (docs/GDD.md §7)", () => {
+describe("EraSystem — les dix âges de la civilisation (docs/GDD.md §7)", () => {
   it("commence à l'âge de pierre (tribu)", () => {
     const era = new EraSystem(new EventBus<GameEvents>());
     expect(era.era).toBe(Era.Stone);
@@ -13,16 +13,17 @@ describe("EraSystem — les huit âges de l'humanité (docs/GDD.md §7)", () => 
     expect(era.info.politics).toBe("Tribu");
   });
 
-  it("le Savoir accumulé fait franchir les huit paliers, en ordre, une seule fois chacun", () => {
+  it("le Savoir accumulé fait franchir les dix paliers, en ordre, une seule fois chacun", () => {
     const bus = new EventBus<GameEvents>();
     const advances: number[] = [];
     bus.on("era:advanced", (e) => advances.push(e.era));
     const era = new EraSystem(bus);
 
-    // Grosse civilisation entretenue longtemps → traverse tous les âges.
-    for (let i = 0; i < 5000; i++) era.advance(80, 5, 3);
+    // Grosse civilisation entretenue très longtemps → traverse tous les âges,
+    // jusqu'à la civilisation galactique (dernier palier = 130000 de Savoir).
+    for (let i = 0; i < 10000; i++) era.advance(80, 5, 3);
 
-    expect(era.era).toBe(Era.Future);
+    expect(era.era).toBe(Era.Galactic);
     // Chaque ère au-delà de la première, annoncée une fois, dans l'ordre.
     expect(advances).toEqual([
       Era.Bronze,
@@ -32,6 +33,8 @@ describe("EraSystem — les huit âges de l'humanité (docs/GDD.md §7)", () => 
       Era.Industrial,
       Era.Modern,
       Era.Future,
+      Era.Interplanetary,
+      Era.Galactic,
     ]);
   });
 
@@ -45,14 +48,14 @@ describe("EraSystem — les huit âges de l'humanité (docs/GDD.md §7)", () => 
     expect(era.era).toBe(Era.Stone); // pas encore franchi
   });
 
-  it("le Futur est la dernière ère — progression plafonnée à 1", () => {
+  it("la Galactique est la dernière ère — progression plafonnée à 1", () => {
     const era = new EraSystem(new EventBus<GameEvents>());
     for (let i = 0; i < 20000; i++) era.advance(100, 8, 5);
-    expect(era.era).toBe(Era.Future);
+    expect(era.era).toBe(Era.Galactic);
     expect(era.progress).toBe(1);
-    // Ne dépasse jamais le futur.
+    // Ne dépasse jamais l'ère galactique.
     for (let i = 0; i < 100; i++) era.advance(100, 8, 5);
-    expect(era.era).toBe(Era.Future);
+    expect(era.era).toBe(Era.Galactic);
   });
 
   it("est déterministe et se sérialise", () => {
@@ -64,15 +67,15 @@ describe("EraSystem — les huit âges de l'humanité (docs/GDD.md §7)", () => 
     expect(b.era).toBe(a.era);
   });
 
-  it("il y a huit ères, chacune avec un nom, une politique et une icône", () => {
-    expect(ERA_COUNT).toBe(8);
-    expect(ERA_INFO).toHaveLength(8);
+  it("il y a dix ères, chacune avec un nom, une politique et une icône", () => {
+    expect(ERA_COUNT).toBe(10);
+    expect(ERA_INFO).toHaveLength(10);
     for (const info of ERA_INFO) {
       expect(info.name.length).toBeGreaterThan(0);
       expect(info.politics.length).toBeGreaterThan(0);
       expect(info.icon.length).toBeGreaterThan(0);
     }
-    // Ordre historique attendu.
+    // Ordre historique attendu, de la pierre à la galaxie.
     expect(ERA_INFO.map((i) => i.name)).toEqual([
       "Âge de Pierre",
       "Âge du Bronze",
@@ -82,6 +85,8 @@ describe("EraSystem — les huit âges de l'humanité (docs/GDD.md §7)", () => 
       "Révolution Industrielle",
       "Époque Moderne",
       "Futur",
+      "Ère Interplanétaire",
+      "Ère Galactique",
     ]);
   });
 

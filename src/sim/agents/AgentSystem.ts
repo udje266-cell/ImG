@@ -78,6 +78,8 @@ const ERA_PROFESSIONS: readonly Profession[][] = [
   ["worker", "smith", "merchant", "scholar", "farmer"], // Industrielle
   ["worker", "engineer", "merchant", "scholar"], // Moderne
   ["engineer", "scholar", "merchant"], // Futur
+  ["engineer", "scholar", "merchant"], // Ère Interplanétaire (colons, ingénieurs)
+  ["engineer", "scholar"], // Ère Galactique (post-rareté : savoir & ingénierie)
 ];
 
 export type Emotion = "joy" | "fear" | "anger" | "grief";

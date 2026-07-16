@@ -2,10 +2,12 @@ import type { EventBus } from "../../core/events/EventBus";
 import type { GameEvents } from "../events";
 
 /**
- * Ères technologiques (docs/GDD.md §7, cahier des charges §7).
+ * Ères technologiques (docs/GDD.md §7, cahier des charges §7, docs/ART_BIBLE.md).
  *
- * La civilisation du joueur **évolue** à travers les huit grands âges de
- * l'humanité, de l'âge de pierre au futur. Le moteur est le **Savoir** : il
+ * La civilisation du joueur **évolue** à travers les dix grands âges, de l'âge
+ * de pierre à la civilisation galactique (les deux derniers paliers prolongent
+ * la courbe au-delà du futur : essaimage interplanétaire puis stellaire). Le
+ * moteur est le **Savoir** : il
  * s'accumule avec la population (plus d'esprits, plus d'idées), le nombre de
  * villages (société organisée) et les temples (transmission du savoir). Quand
  * il franchit un palier, le peuple **change d'ère** — ce qui transforme ses
@@ -22,10 +24,12 @@ export enum Era {
   Industrial = 5,
   Modern = 6,
   Future = 7,
+  Interplanetary = 8,
+  Galactic = 9,
 }
-export const ERA_COUNT = 8;
+export const ERA_COUNT = 10;
 /** Dernière ère (borne haute). */
-export const LAST_ERA: Era = Era.Future;
+export const LAST_ERA: Era = Era.Galactic;
 
 export interface EraInfo {
   name: string;
@@ -43,6 +47,8 @@ export const ERA_INFO: readonly EraInfo[] = [
   { name: "Révolution Industrielle", politics: "Nation", icon: "🏭" },
   { name: "Époque Moderne", politics: "République", icon: "🏙️" },
   { name: "Futur", politics: "Fédération", icon: "🚀" },
+  { name: "Ère Interplanétaire", politics: "Union des Mondes", icon: "🪐" },
+  { name: "Ère Galactique", politics: "Fédération Galactique", icon: "🌌" },
 ];
 
 /**
@@ -59,6 +65,8 @@ export const ERA_KNOWLEDGE: readonly number[] = [
   22000, // Révolution Industrielle
   38000, // Époque Moderne
   60000, // Futur
+  90000, // Ère Interplanétaire (essaimage vers d'autres mondes)
+  130000, // Ère Galactique (maîtrise de l'énergie stellaire)
 ];
 
 /** Cadence (ticks) d'accumulation du Savoir. */
@@ -83,7 +91,7 @@ export class EraSystem {
     return ERA_INFO[this._era]!;
   }
 
-  /** Progression [0, 1] vers l'ère suivante (1 si déjà à la dernière ère). */
+  /** Progression [0, 1] vers l'ère suivante (1 si déjà à la dernière ère, la Galactique). */
   get progress(): number {
     if (this._era >= LAST_ERA) return 1;
     const from = ERA_KNOWLEDGE[this._era]!;

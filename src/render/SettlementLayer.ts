@@ -70,6 +70,8 @@ function gableRoof(w: number, h: number, d: number): BufferGeometry {
  *  - Industrielle : bâtisse de brique rouge, toit d'ardoise, haute cheminée d'usine.
  *  - Moderne   : immeuble béton & verre, bandes vitrées bleutées, toit plat.
  *  - Futur     : tour effilée blanche & verre, anneau lumineux cyan, antenne.
+ *  - Interplanétaire : habitat colonial sous dôme géodésique, hublots, sas, relais.
+ *  - Galactique : nœud orbital — plateforme, anneau habité et cœur d'énergie stellaire.
  */
 function makeHouseGeometry(era: Era): BufferGeometry {
   const parts: BufferGeometry[] = [];
@@ -179,6 +181,28 @@ function makeHouseGeometry(era: Era): BufferGeometry {
       push(new BoxGeometry(0.26, 0.4, 0.06), 0x7fe8ff, (g) => g.translate(0, 0.24, 0.5)); // entrée irisée
       break;
     }
+    case Era.Interplanetary: {
+      // Habitat colonial sous dôme : dôme géodésique blanc sur socle, hublots, sas, antenne relais.
+      push(new CylinderGeometry(0.62, 0.7, 0.28, 12), 0xb9c3cb, (g) => g.translate(0, 0.14, 0)); // socle technique
+      push(new SphereGeometry(0.62, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0xe7eef3, (g) => g.translate(0, 0.28, 0)); // dôme pressurisé
+      for (let k = 0; k < 6; k++) push(new BoxGeometry(0.02, 0.02, 0.62), 0x9fb3c2, (g) => { const a = (k / 6) * Math.PI; g.rotateX(Math.PI / 2); g.rotateY(a); g.translate(0, 0.42, 0); }); // nervures du dôme
+      for (const a of [0.4, 2.2, 4.0]) push(new CylinderGeometry(0.08, 0.08, 0.04, 10), 0x2b6f8f, (g) => { g.rotateX(Math.PI / 2); g.translate(Math.cos(a) * 0.6, 0.34, Math.sin(a) * 0.6); }); // hublots lumineux
+      push(new BoxGeometry(0.26, 0.3, 0.14), 0xaab6bd, (g) => g.translate(0, 0.15, 0.64)); // sas d'entrée
+      push(new CylinderGeometry(0.02, 0.02, 0.6, 6), 0xcdd6dc, (g) => g.translate(0.5, 0.7, -0.3)); // mât relais
+      push(new SphereGeometry(0.05, 8, 6), 0x4fe6ff, (g) => g.translate(0.5, 1.02, -0.3)); // balise
+      break;
+    }
+    case Era.Galactic: {
+      // Nœud orbital : plateforme flottante, anneau de stations, cœur d'énergie stellaire, mâts.
+      push(new CylinderGeometry(0.5, 0.62, 0.2, 8), 0xc9c1e0, (g) => g.translate(0, 0.5, 0)); // plateforme sur pylône
+      push(new CylinderGeometry(0.08, 0.14, 0.5, 6), 0x8a7fb0, (g) => g.translate(0, 0.22, 0)); // pylône
+      push(new CylinderGeometry(0.9, 0.9, 0.05, 24), 0x7d5fe0, (g) => g.translate(0, 0.98, 0)); // anneau habité
+      for (let k = 0; k < 8; k++) push(new BoxGeometry(0.14, 0.1, 0.1), 0xe0d8ff, (g) => { const a = (k / 8) * Math.PI * 2; g.translate(Math.cos(a) * 0.9, 0.98, Math.sin(a) * 0.9); }); // modules sur l'anneau
+      push(new SphereGeometry(0.24, 16, 10), 0xd9b6ff, (g) => g.translate(0, 0.98, 0)); // cœur stellaire
+      push(new SphereGeometry(0.3, 16, 10), 0xb98cff, (g) => g.translate(0, 0.98, 0)); // halo (léger, additif visuel via teinte)
+      push(new ConeGeometry(0.16, 0.7, 6), 0xf0e6ff, (g) => g.translate(0, 1.5, 0)); // flèche cristalline
+      break;
+    }
   }
   return mergeGeometries(parts, false)!;
 }
@@ -188,7 +212,8 @@ function makeHouseGeometry(era: Era): BufferGeometry {
  * affiche l'âge d'un coup d'œil, en reprenant un jalon réel de chaque période :
  * menhir (Pierre) → obélisque (Bronze) → colonne à statue (Fer) → flèche de
  * cathédrale (Moyen Âge) → dôme de la Renaissance → tour de l'horloge
- * (Industrielle) → tour de verre (Moderne) → spire holographique (Futur).
+ * (Industrielle) → tour de verre (Moderne) → spire holographique (Futur) →
+ * ascenseur spatial (Interplanétaire) → sphère de Dyson (Galactique).
  */
 function makeMonumentGeometry(era: Era): BufferGeometry {
   const parts: BufferGeometry[] = [];
@@ -254,6 +279,30 @@ function makeMonumentGeometry(era: Era): BufferGeometry {
       push(new CylinderGeometry(0.08, 0.2, 2.4, 6), 0xeaf4ff, (g) => g.translate(0, 1.2, 0)); // pylône
       push(new CylinderGeometry(0.6, 0.6, 0.06, 16), 0x4fe6ff, (g) => g.translate(0, 1.85, 0)); // anneau
       push(new SphereGeometry(0.17, 12, 8), 0x4fe6ff, (g) => g.translate(0, 2.6, 0)); // cœur d'énergie
+      break;
+    }
+    case Era.Interplanetary: {
+      // Ascenseur spatial : socle d'ancrage + câble effilé + nacelle + station au sommet.
+      push(new CylinderGeometry(0.42, 0.5, 0.4, 12), 0xb9c3cb, (g) => g.translate(0, 0.2, 0)); // base d'ancrage
+      push(new CylinderGeometry(0.04, 0.08, 2.8, 6), 0xdce4ea, (g) => g.translate(0, 1.7, 0)); // câble/ruban
+      push(new BoxGeometry(0.2, 0.16, 0.2), 0x4fe6ff, (g) => g.translate(0, 1.2, 0)); // nacelle grimpante
+      push(new CylinderGeometry(0.34, 0.34, 0.12, 16), 0x9fb3c2, (g) => g.translate(0, 3.05, 0)); // station orbitale
+      push(new CylinderGeometry(0.5, 0.5, 0.03, 20), 0x2b6f8f, (g) => g.translate(0, 3.14, 0)); // anneau de la station
+      break;
+    }
+    case Era.Galactic: {
+      // Sphère de Dyson (nœud) : cœur d'étoile captif + coques orbitales croisées + éclat.
+      push(new SphereGeometry(0.3, 16, 12), 0xffe9a8, (g) => g.translate(0, 1.5, 0)); // étoile captive
+      for (const rot of [0, 1] as const) {
+        const ring = new CylinderGeometry(0.62, 0.62, 0.05, 24, 1, true);
+        if (rot === 1) ring.rotateX(Math.PI / 2);
+        else ring.rotateZ(Math.PI / 2);
+        ring.translate(0, 1.5, 0);
+        paint(ring, 0x8a7fb0);
+        parts.push(ring);
+      }
+      for (let k = 0; k < 10; k++) push(new BoxGeometry(0.12, 0.12, 0.02), 0xcbb8ff, (g) => { const a = (k / 10) * Math.PI * 2; g.rotateZ(a); g.translate(0.62, 0, 0); g.translate(0, 1.5, 0); }); // panneaux collecteurs
+      push(new CylinderGeometry(0.06, 0.16, 1.5, 6), 0xb98cff, (g) => g.translate(0, 0.7, 0)); // pylône d'ancrage au sol
       break;
     }
   }

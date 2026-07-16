@@ -302,15 +302,19 @@ avec **2 tiers post-`Future` à ajouter** si l'on veut aller jusqu'au galactique
 | 11 | Ère numérique | `Modern` (6) tardif | sous-phase |
 | 12 | Futur proche | `Future` (7) précoce | sous-phase |
 | 13 | Futur avancé | `Future` (7) | existant |
-| 14 | Civilisation interplanétaire | **`Interplanetary` (8)** | **à créer** |
-| 15 | Civilisation galactique | **`Galactic` (9)** | **à créer** |
+| 14 | Civilisation interplanétaire | **`Interplanetary` (8)** | **existant** ✅ |
+| 15 | Civilisation galactique | **`Galactic` (9)** | **existant** ✅ |
 
-> **Reco code** : étendre l'enum `Era` à 10 valeurs (ajout `Interplanetary`,
-> `Galactic`), passer `ERA_COUNT=10`, ajouter deux paliers `ERA_KNOWLEDGE`, et —
-> si l'on veut la granularité des 15 phases côté gameplay — introduire un
-> **sous-niveau `subEra`** (0/1) par ère de code, purement cosmétique (swap de
-> kit). Les sous-phases (Néolithique, Antiquité, Haut MA, Numérique, Futur
-> proche) n'exigent **pas** de nouvelle mécanique, seulement un kit d'assets.
+> **Fait** : l'enum `Era` compte désormais **10 valeurs** (`Interplanetary`,
+> `Galactic` ajoutées), `ERA_COUNT=10`, `LAST_ERA=Galactic`, deux paliers
+> `ERA_KNOWLEDGE` (90000, 130000), politiques *Union des Mondes* / *Fédération
+> Galactique*, métiers, apparences (scaphandre / halo d'énergie) et bâtiments
+> procéduraux (habitat-dôme + ascenseur spatial ; nœud orbital + sphère de
+> Dyson) — côté TypeScript **et** portage C#. Reste ouvert : si l'on veut la
+> granularité des 15 phases côté gameplay, introduire un **sous-niveau
+> `subEra`** (0/1) par ère de code, purement cosmétique (swap de kit). Les
+> sous-phases (Néolithique, Antiquité, Haut MA, Numérique, Futur proche)
+> n'exigent **pas** de nouvelle mécanique, seulement un kit d'assets.
 
 ## 7. Priorités & jalons de production
 
