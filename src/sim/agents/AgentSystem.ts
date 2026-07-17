@@ -38,6 +38,15 @@ const BIRTH_FATIGUE_MAX = 0.6; // …et pas épuisé
 const BIRTH_CHANCE = 0.3;
 export const MAX_POPULATION = 300;
 /**
+ * Faction du **joueur** (le dieu incarné par le joueur) : id 0. Les autres
+ * factions (≥ 1) appartiennent à des **dieux-IA** rivaux. L'allégeance d'un
+ * habitant dit quel dieu il suit ; seule la ferveur des fidèles du joueur
+ * alimente SA Foi. `UNALIGNED` marque un habitant pas encore rattaché (il le
+ * sera à la fondation de son village).
+ */
+export const PLAYER_FACTION = 0;
+export const UNALIGNED = -1;
+/**
  * Rayon du territoire (tuiles) autour du foyer : les habitants vivent, flânent
  * et fourragent DANS ce rayon autour de leur maison, au lieu de dériver sans
  * fin à travers toute la carte (sinon la population « déborde » partout, y
@@ -164,6 +173,13 @@ export class AgentSystem {
   private readonly workX: number[] = [];
   private readonly workY: number[] = [];
   private readonly hasWork: boolean[] = [];
+  /**
+   * Allégeance : quelle faction (dieu) cet habitant suit. 0 = le joueur, ≥ 1 =
+   * un dieu-IA rival, -1 = pas encore rattaché. Héritée à la naissance,
+   * modifiée par conversion. Sérialisée (l'allégeance est un fait durable du
+   * monde, contrairement au lieu de travail).
+   */
+  private readonly allegiance: number[] = [];
   private readonly rng: Rng;
   private readonly personaRng: Rng;
   /** Ère courante de la civilisation (pilote les professions). */
@@ -218,6 +234,31 @@ export class AgentSystem {
     this.hasWork[i] = true;
   }
 
+  /** Faction (dieu) suivie par un habitant (0 = joueur, ≥ 1 = dieu-IA, -1 = aucune). */
+  allegianceOf(i: number): number {
+    return this.allegiance[i] ?? UNALIGNED;
+  }
+
+  /** Rallie un habitant à une faction (conversion, naissance, fondation). */
+  setAllegiance(i: number, faction: number): void {
+    if (i < 0 || i >= this.px.length) return;
+    this.allegiance[i] = faction;
+  }
+
+  /** Rattache l'habitant à `faction` **seulement s'il n'a pas encore d'allégeance**
+   *  (fondation d'un village : on ne récrit pas une conversion déjà acquise). */
+  alignIfUnset(i: number, faction: number): void {
+    if (i < 0 || i >= this.px.length) return;
+    if ((this.allegiance[i] ?? UNALIGNED) < 0) this.allegiance[i] = faction;
+  }
+
+  /** Nombre de fidèles d'une faction (recensement des ouailles d'un dieu). */
+  faithfulCount(faction: number): number {
+    let c = 0;
+    for (let i = 0; i < this.allegiance.length; i++) if (this.allegiance[i] === faction) c++;
+    return c;
+  }
+
   /** Marie deux habitants (lien réciproque). */
   marry(a: number, b: number): void {
     if (a === b || a < 0 || b < 0 || a >= this.px.length || b >= this.px.length) return;
@@ -225,7 +266,22 @@ export class AgentSystem {
     this.spouse[b] = a;
   }
 
-  /** Foi produite ce tick par l'ensemble des croyants. */
+  /**
+   * Foi produite ce tick par les fidèles d'une **faction** donnée. Le joueur
+   * (`PLAYER_FACTION`) ne récolte que la ferveur de SES ouailles : convertir les
+   * habitants d'un autre village, ou l'emporter à la guerre, grossit donc
+   * directement ses revenus de Foi. Les habitants non rattachés (-1) ne
+   * produisent de Foi pour personne.
+   */
+  faithIncomeFor(faction: number): number {
+    let sum = 0;
+    for (let i = 0; i < this.fervour.length; i++) {
+      if (this.allegiance[i] === faction) sum += this.fervour[i]! * FAITH_PER_BELIEVER;
+    }
+    return sum;
+  }
+
+  /** Foi produite ce tick par l'ensemble des croyants (toutes factions). */
   faithIncome(): number {
     let sum = 0;
     for (let i = 0; i < this.fervour.length; i++) sum += this.fervour[i]! * FAITH_PER_BELIEVER;
@@ -363,6 +419,7 @@ export class AgentSystem {
       this.curiosity, this.sociability, this.joy, this.fear, this.anger, this.grief,
       this.spouse, this.parentA, this.parentB, this.targetX, this.targetY, this.homeX,
       this.homeY, this.beckonX, this.beckonY, this.beckonTicks, this.workX, this.workY,
+      this.allegiance,
     ];
     for (const a of numeric) {
       let k = 0;
@@ -444,6 +501,9 @@ export class AgentSystem {
     this.workX.push(x);
     this.workY.push(y);
     this.hasWork.push(false);
+    // Non rattaché par défaut : la fondation du village (ou l'héritage du parent
+    // pour une naissance) fixera l'allégeance juste après.
+    this.allegiance.push(UNALIGNED);
     return i;
   }
 
@@ -529,6 +589,7 @@ export class AgentSystem {
         const child = this.spawn(this.homeX[i]!, this.homeY[i]!);
         this.parentA[child] = i;
         this.parentB[child] = this.spouse[i]!;
+        this.allegiance[child] = this.allegiance[i]!; // l'enfant naît dans la foi de ses parents
         this.joy[i] = Math.min(1, this.joy[i]! + 0.5); // la naissance réjouit
       }
 
@@ -747,7 +808,8 @@ export class AgentSystem {
     piety: number[]; courage: number[]; curiosity: number[]; sociability: number[];
     joy: number[]; fear: number[]; anger: number[]; grief: number[];
     profession: number[]; spouse: number[]; parentA: number[]; parentB: number[];
-    homeX: number[]; homeY: number[]; rngState: number; personaRngState: number; era: number;
+    homeX: number[]; homeY: number[]; allegiance: number[];
+    rngState: number; personaRngState: number; era: number;
   } {
     return {
       px: [...this.px], py: [...this.py], hunger: [...this.hunger], fatigue: [...this.fatigue],
@@ -756,7 +818,7 @@ export class AgentSystem {
       joy: [...this.joy], fear: [...this.fear], anger: [...this.anger], grief: [...this.grief],
       profession: this.profession.map((p) => PROFESSION_CODES[p]),
       spouse: [...this.spouse], parentA: [...this.parentA], parentB: [...this.parentB],
-      homeX: [...this.homeX], homeY: [...this.homeY],
+      homeX: [...this.homeX], homeY: [...this.homeY], allegiance: [...this.allegiance],
       rngState: this.rng.getState(), personaRngState: this.personaRng.getState(), era: this.currentEra,
     };
   }
@@ -797,6 +859,9 @@ export class AgentSystem {
       this.workX.push(data.homeX[i]!);
       this.workY.push(data.homeY[i]!);
       this.hasWork.push(false);
+      // Sauvegardes d'avant les factions : allégeance absente → non rattaché,
+      // que `SettlementSystem.assignAllegiances` recalera au joueur/village.
+      this.allegiance.push(data.allegiance?.[i] ?? UNALIGNED);
     }
     this.rng.setState(data.rngState);
     if (data.personaRngState !== undefined) this.personaRng.setState(data.personaRngState);
@@ -809,6 +874,7 @@ export class AgentSystem {
       this.curiosity, this.sociability, this.joy, this.fear, this.anger, this.grief,
       this.spouse, this.parentA, this.parentB, this.targetX, this.targetY, this.homeX,
       this.homeY, this.beckonX, this.beckonY, this.beckonTicks, this.workX, this.workY,
+      this.allegiance,
     ];
     for (const a of arrays) a.length = 0;
     this.profession.length = 0;

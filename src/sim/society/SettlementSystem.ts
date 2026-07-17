@@ -23,6 +23,12 @@ export interface Village {
   population: number;
   /** Nombre de huttes déjà bâties (l'expansion en ajoute avec la croissance). */
   huts: number;
+  /**
+   * Faction (dieu) qui règne sur ce village. 0 = le joueur (village-souche du
+   * couple de la Genèse) ; ≥ 1 = un dieu-IA rival. Fixe l'allégeance initiale
+   * des habitants du village.
+   */
+  faction: number;
 }
 export interface Dwelling {
   x: number;
@@ -191,8 +197,11 @@ export class SettlementSystem {
       if (cnt[s]! === 0) continue;
       const spot = this.nearestBuildableTile(sumX[s]! / cnt[s]!, sumY[s]! / cnt[s]!);
       if (!spot) continue;
+      // Faction = ordre de fondation. Le premier village fondé descend du seed
+      // le plus proche du centre du monde — le foyer du couple de la Genèse —,
+      // il revient donc au JOUEUR (faction 0) ; les suivants aux dieux-IA (≥ 1).
       seedToVillage[s] = this._villages.length;
-      this._villages.push({ x: spot.x, y: spot.y, population: cnt[s]!, huts: 0 });
+      this._villages.push({ x: spot.x, y: spot.y, population: cnt[s]!, huts: 0, faction: this._villages.length });
     }
     if (this._villages.length === 0) return;
 
@@ -207,6 +216,8 @@ export class SettlementSystem {
     this.assignHomes(agents);
     // …puis rejoint son lieu de travail selon son métier (forge, champ, marché…).
     this.assignWorkplaces(agents);
+    // …et prête allégeance au dieu de son village (le joueur pour le village-souche).
+    this.assignAllegiances(agents);
   }
 
   /**
@@ -315,6 +326,31 @@ export class SettlementSystem {
   }
 
   /**
+   * Rattache chaque habitant **non encore aligné** à la faction (dieu) de son
+   * village le plus proche : le village-souche revient au joueur, les autres à
+   * leurs dieux-IA. On ne récrit JAMAIS une allégeance déjà fixée — une
+   * conversion (ou un héritage à la naissance) est ainsi préservée à travers les
+   * refondations et l'expansion. À appeler après `found`/`expand` et au chargement.
+   */
+  assignAllegiances(agents: AgentSystem): void {
+    if (this._villages.length === 0) return;
+    const snap = agents.snapshot();
+    for (let i = 0; i < snap.count; i++) {
+      if (agents.allegianceOf(i) >= 0) continue; // déjà rallié (né/converti)
+      let bv = 0;
+      let bestD = Infinity;
+      for (let v = 0; v < this._villages.length; v++) {
+        const d = (snap.x[i]! - this._villages[v]!.x) ** 2 + (snap.y[i]! - this._villages[v]!.y) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          bv = v;
+        }
+      }
+      agents.alignIfUnset(i, this._villages[bv]!.faction);
+    }
+  }
+
+  /**
    * Croissance des villages : recompte la population de chaque village
    * (habitant → village le plus proche) et bâtit de nouvelles huttes quand
    * elle dépasse la capacité. Appelée périodiquement par la Simulation.
@@ -359,6 +395,9 @@ export class SettlementSystem {
     // Réattribue les lieux de travail : couvre les nouveau-nés (sans travail
     // encore) et tout changement de métier survenu depuis la dernière passe.
     this.assignWorkplaces(agents);
+    // Rattache les éventuels habitants encore non alignés (immigrants, chargements
+    // anciens). Les nouveau-nés héritent déjà de la foi de leurs parents.
+    this.assignAllegiances(agents);
     return changed;
   }
 
@@ -479,7 +518,7 @@ export class SettlementSystem {
   }
 
   serialize(): {
-    vx: number[]; vy: number[]; vpop: number[]; vhuts: number[];
+    vx: number[]; vy: number[]; vpop: number[]; vhuts: number[]; vfaction: number[];
     dx: number[]; dy: number[]; fx: number[]; fy: number[];
   } {
     return {
@@ -487,6 +526,7 @@ export class SettlementSystem {
       vy: this._villages.map((v) => v.y),
       vpop: this._villages.map((v) => v.population),
       vhuts: this._villages.map((v) => v.huts),
+      vfaction: this._villages.map((v) => v.faction),
       dx: this._dwellings.map((d) => d.x),
       dy: this._dwellings.map((d) => d.y),
       fx: this._fields.map((f) => f.x),
@@ -505,6 +545,8 @@ export class SettlementSystem {
         population: data.vpop[i]!,
         // Sauvegarde v6 (sans vhuts) : estime depuis la population.
         huts: data.vhuts[i] ?? Math.ceil(data.vpop[i]! / DWELLERS_PER_HUT),
+        // Sauvegarde d'avant les factions : faction = ordre de fondation (0 = joueur).
+        faction: data.vfaction?.[i] ?? i,
       });
     }
     for (let i = 0; i < data.dx.length; i++) {

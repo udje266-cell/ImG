@@ -26,7 +26,7 @@ import { ProgressionSystem } from "../powers/ProgressionSystem";
 import { RainPower } from "../powers/RainPower";
 import { TerraformPower } from "../powers/TerraformPower";
 import type { TerrainGrid } from "../terrain/TerrainGrid";
-import { AgentSystem } from "../agents/AgentSystem";
+import { AgentSystem, PLAYER_FACTION } from "../agents/AgentSystem";
 import { RELIGION_INTERVAL, ReligionSystem } from "../religion/ReligionSystem";
 import { DivineMemory } from "../society/DivineMemory";
 import { ERA_INTERVAL, EraSystem } from "../society/EraSystem";
@@ -168,7 +168,10 @@ export class Simulation {
       update: (sim) => {
         sim.agents.update(sim.clock.tick);
         // Les croyants génèrent de la Foi : la boucle est bouclée (GDD §2).
-        sim.faith.add(sim.agents.faithIncome());
+        // La Foi du joueur ne monte que de SES fidèles : convertir d'autres
+        // villages (ou les vaincre) grossit ses revenus ; les ouailles des
+        // dieux-IA n'y contribuent pas.
+        sim.faith.add(sim.agents.faithIncomeFor(PLAYER_FACTION));
       },
     });
     // Religions : les récits s'estompent, les prêtres prêchent, les temples

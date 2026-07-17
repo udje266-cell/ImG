@@ -363,6 +363,41 @@ function makeTempleGeometry(): BufferGeometry {
   return mergeGeometries(parts, false)!;
 }
 
+/**
+ * Bannière de faction : mât sombre + oriflamme claire (teintée par instance à
+ * la couleur du dieu du village). Plantée près du cœur du village, elle dit
+ * d'un coup d'œil À QUI il appartient — le tien (or divin) ou un dieu-IA rival.
+ */
+function makeFlagGeometry(): BufferGeometry {
+  const parts: BufferGeometry[] = [];
+  // Mât (sombre, non teinté par la faction : couleur de sommet quasi noire).
+  const pole = new CylinderGeometry(0.04, 0.05, 2.0, 6);
+  pole.translate(0, 1.0, 0);
+  paint(pole, 0x2a2622);
+  parts.push(pole);
+  // Oriflamme (blanche → prend la couleur de faction via `instanceColor`).
+  const cloth = new BoxGeometry(0.62, 0.42, 0.04);
+  cloth.translate(0.33, 1.72, 0);
+  paint(cloth, 0xffffff);
+  parts.push(cloth);
+  // Pommeau au sommet du mât.
+  const knob = new SphereGeometry(0.06, 8, 6);
+  knob.translate(0, 2.02, 0);
+  paint(knob, 0xffffff);
+  parts.push(knob);
+  return mergeGeometries(parts, false)!;
+}
+
+/**
+ * Couleur emblématique de chaque faction (dieu). La faction 0 — le JOUEUR —
+ * arbore l'or divin (comme la Foi) ; les dieux-IA rivaux prennent des teintes
+ * franches et distinctes.
+ */
+const FACTION_COLORS = [0xf2c14e, 0xc0392b, 0x2a9d8f, 0x8e44ad, 0xe67e22, 0x2980b9];
+function factionColor(faction: number): number {
+  return FACTION_COLORS[((faction % FACTION_COLORS.length) + FACTION_COLORS.length) % FACTION_COLORS.length]!;
+}
+
 /** Feu de camp : rondins croisés + cercle de pierres du foyer. */
 function makeCampfireBase(): BufferGeometry {
   const parts: BufferGeometry[] = [];
@@ -405,6 +440,9 @@ export class SettlementLayer {
   private readonly totems: InstancedMesh;
   private readonly fieldsMesh: InstancedMesh;
   private readonly temples: InstancedMesh;
+  /** Bannières de faction (une par village, teintée à la couleur de son dieu). */
+  private readonly flags: InstancedMesh;
+  private readonly flagColor = new Color();
   /** Matériau des géométries procédurales (huttes/monuments sans modèle réel). */
   private readonly proceduralMat: MeshStandardMaterial;
   /** Feux de camp (un par village) : flammes, braises, fumée et lumière. */
@@ -433,7 +471,8 @@ export class SettlementLayer {
     this.totems = new InstancedMesh(monument.geometry, monument.material, MAX_TOTEMS);
     this.fieldsMesh = new InstancedMesh(makeFieldGeometry(), mat, MAX_FIELDS);
     this.temples = new InstancedMesh(makeTempleGeometry(), mat, MAX_TEMPLES);
-    for (const m of [this.huts, this.totems, this.fieldsMesh, this.temples]) {
+    this.flags = new InstancedMesh(makeFlagGeometry(), mat, MAX_TOTEMS);
+    for (const m of [this.huts, this.totems, this.fieldsMesh, this.temples, this.flags]) {
       m.frustumCulled = false;
       m.castShadow = true;
       m.receiveShadow = true;
@@ -509,6 +548,25 @@ export class SettlementLayer {
     }
     this.totems.count = t;
     this.totems.instanceMatrix.needsUpdate = true;
+
+    // Bannières de faction : une par village, plantée près du cœur, teintée à la
+    // couleur de son dieu (or pour le joueur, teinte franche pour un dieu-IA).
+    let fl = 0;
+    for (const v of villages) {
+      if (fl >= MAX_TOTEMS) break;
+      const bx = v.x - 0.85;
+      const by = v.y + 0.85;
+      this.dummy.position.set(bx, groundSurfaceAt(terrain, bx, by), by);
+      this.dummy.rotation.set(0, hash01(bx, by) * 0.6 - 0.3, 0);
+      this.dummy.scale.setScalar(1);
+      this.dummy.updateMatrix();
+      this.flags.setMatrixAt(fl, this.dummy.matrix);
+      this.flags.setColorAt(fl, this.flagColor.set(factionColor(v.faction)));
+      fl++;
+    }
+    this.flags.count = fl;
+    this.flags.instanceMatrix.needsUpdate = true;
+    if (this.flags.instanceColor) this.flags.instanceColor.needsUpdate = true;
 
     let f = 0;
     for (const field of fields) {

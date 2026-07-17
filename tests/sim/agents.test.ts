@@ -76,9 +76,12 @@ describe("AgentSystem (docs/GDD.md §4)", () => {
   it("wires into the Simulation and grows the faith reserve via believers", () => {
     const sim = new Simulation({ seed: 7, width: 48, height: 48, faith: { initial: 100, regenPerTick: 0 } });
     sim.agents.populate(50);
+    // Fonde les villages : le peuple prête alors allégeance à SON dieu — le
+    // joueur pour le village-souche. Seuls SES fidèles alimentent SA Foi.
+    sim.foundSettlements();
     const before = sim.faith.current;
     for (let i = 0; i < 50; i++) sim.step();
-    // Sans regen passif, toute hausse vient des croyants.
+    // Sans regen passif, toute hausse vient des croyants du joueur.
     expect(sim.faith.current).toBeGreaterThan(before);
   });
 

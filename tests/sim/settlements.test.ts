@@ -133,6 +133,38 @@ describe("SettlementSystem (docs/GDD.md §4 « Sociétés »)", () => {
     expect(working).toBeGreaterThan(0);
   });
 
+  it("donne le village-souche au joueur (faction 0) et les autres aux dieux-IA", () => {
+    const { agents, settlements } = makeFounded(7, 60);
+    expect(settlements.villages.length).toBeGreaterThan(1);
+    settlements.villages.forEach((v, i) => expect(v.faction).toBe(i)); // 0 = joueur, ≥1 = IA
+    // Chaque habitant est rattaché (plus aucun non-aligné après la fondation).
+    let unaligned = 0;
+    for (let i = 0; i < agents.count; i++) if (agents.allegianceOf(i) < 0) unaligned++;
+    expect(unaligned).toBe(0);
+    // Le joueur a des fidèles, mais pas toute la population (des dieux-IA règnent ailleurs).
+    expect(agents.faithfulCount(0)).toBeGreaterThan(0);
+    expect(agents.faithfulCount(0)).toBeLessThan(agents.count);
+  });
+
+  it("la Foi du joueur ne vient que de SES fidèles", () => {
+    const { agents } = makeFounded(7, 60);
+    const player = agents.faithIncomeFor(0);
+    const everyone = agents.faithIncome();
+    expect(player).toBeGreaterThan(0);
+    expect(player).toBeLessThan(everyone); // les ouailles des dieux-IA n'y contribuent pas
+  });
+
+  it("une conversion survit à l'expansion (l'allégeance acquise n'est jamais récrite)", () => {
+    const { agents, settlements } = makeFounded(7, 60);
+    // Prend un fidèle d'un dieu-IA et convertis-le au joueur.
+    let convert = -1;
+    for (let i = 0; i < agents.count; i++) if (agents.allegianceOf(i) === 1) { convert = i; break; }
+    expect(convert).toBeGreaterThanOrEqual(0);
+    agents.setAllegiance(convert, 0);
+    settlements.expand(agents); // réattribution des non-alignés uniquement
+    expect(agents.allegianceOf(convert)).toBe(0); // la conversion tient
+  });
+
   it("survives a full save/load cycle through the Simulation", () => {
     const sim = new Simulation({ seed: 5, width: 48, height: 48 });
     sim.agents.populate(40);

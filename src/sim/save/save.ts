@@ -225,10 +225,10 @@ const EMPTY_FLORA: FloraState = { density: [], rngState: 0 };
 const EMPTY_AGENTS: AgentsState = {
   px: [], py: [], hunger: [], fatigue: [], fervour: [], piety: [], courage: [], curiosity: [],
   sociability: [], joy: [], fear: [], anger: [], grief: [], profession: [], spouse: [], parentA: [],
-  parentB: [], homeX: [], homeY: [], rngState: 0, personaRngState: 0, era: 0,
+  parentB: [], homeX: [], homeY: [], allegiance: [], rngState: 0, personaRngState: 0, era: 0,
 };
 const EMPTY_FAUNA: FaunaState = { px: [], py: [], energy: [], species: [], cooldown: [], rngState: 0 };
-const EMPTY_SETTLEMENTS: SettlementsState = { vx: [], vy: [], vpop: [], vhuts: [], dx: [], dy: [], fx: [], fy: [] };
+const EMPTY_SETTLEMENTS: SettlementsState = { vx: [], vy: [], vpop: [], vhuts: [], vfaction: [], dx: [], dy: [], fx: [], fy: [] };
 const EMPTY_RELIGION: ReligionState = { bienfait: [], courroux: [], prodige: [], priest: [], temple: [] };
 const EMPTY_ERA: EraState = { knowledge: 0, era: 0 };
 const EMPTY_MEMORY: DivineMemoryState = { deeds: [], reverence: 0, dread: 0 };
@@ -284,7 +284,7 @@ function migrateV6(data: SaveDataV6): SaveDataV10 {
     version: 10,
     spark: 100,
     era: EMPTY_ERA,
-    settlements: { ...data.settlements, vhuts: [], fx: [], fy: [] },
+    settlements: { ...data.settlements, vhuts: [], vfaction: [], fx: [], fy: [] },
     religion: EMPTY_RELIGION,
   };
 }
@@ -364,6 +364,10 @@ export function loadSimulation(raw: AnySaveData, options: { now?: () => number }
     // Les lieux de travail ne sont pas sérialisés : on les ré-dérive des
     // villages/champs restaurés pour que l'IA « work » retrouve ses ancres.
     sim.settlements.assignWorkplaces(sim.agents);
+    // Rattache les habitants d'une sauvegarde d'avant les factions (allégeance
+    // absente → non alignés) au dieu de leur village. Les sauvegardes récentes
+    // portent déjà l'allégeance : `assignAllegiances` n'y touche pas (idempotent).
+    sim.settlements.assignAllegiances(sim.agents);
   }
   if (data.religion.bienfait.length > 0) sim.religion.restore(data.religion);
   sim.era.restore(data.era);
