@@ -150,6 +150,42 @@
       }
       @media (pointer: coarse) { #help { display: none; } }
 
+      /* --- Panneau de réglages (⚙️) --- */
+      #settings-backdrop {
+        position: fixed; inset: 0; background: rgba(6, 9, 16, 0.5); backdrop-filter: blur(2px);
+        opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 20;
+      }
+      #settings-backdrop.open { opacity: 1; pointer-events: auto; }
+      #settings {
+        position: fixed; left: 50%; transform: translateX(-50%);
+        bottom: calc(12px + env(safe-area-inset-bottom));
+        width: min(420px, calc(100vw - 20px));
+        background: var(--panel); border: 1px solid var(--panel-border); border-radius: 18px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); padding: 14px 16px 18px;
+        display: none; z-index: 21; color: var(--text);
+      }
+      #settings.open { display: block; }
+      #settings h2 { margin: 2px 0 8px; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+      #settings h2 .close {
+        margin-left: auto; width: 32px; height: 32px; border-radius: 50%;
+        border: 1px solid var(--panel-border); background: rgba(255, 255, 255, 0.08); color: var(--text);
+        font-size: 17px; cursor: pointer;
+      }
+      .setting { margin: 14px 0 0; }
+      .setting-label { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+      .setting-note { font-size: 11px; opacity: 0.6; margin: 8px 0 0; line-height: 1.4; }
+      .segmented { display: flex; gap: 6px; }
+      .segmented button {
+        flex: 1; padding: 10px 6px; border-radius: 10px; border: 1px solid var(--panel-border);
+        background: rgba(255, 255, 255, 0.05); color: var(--text); font-weight: 600; font-size: 13px;
+        cursor: pointer; transition: background 0.15s, border-color 0.15s;
+      }
+      .segmented button.active { background: rgba(94, 74, 22, 0.92); border-color: var(--accent); }
+      #settings .ghost-btn {
+        padding: 10px 16px; border-radius: 10px; border: 1px solid var(--panel-border);
+        background: rgba(255, 255, 255, 0.05); color: var(--text); font-weight: 600; font-size: 13px; cursor: pointer;
+      }
+
       /* --- Écrans compacts / tactiles : HUD plus discret pour laisser voir le jeu --- */
       @media (max-width: 860px), (pointer: coarse) {
         #resources { gap: 4px; }
@@ -205,6 +241,25 @@
     <div id="grimoire" role="dialog" aria-label="Grimoire des pouvoirs divins" aria-hidden="true">
       <h2>📖 Grimoire des pouvoirs <button class="close" id="grimoire-close" aria-label="Fermer">✕</button></h2>
       <div id="grimoire-body"></div>
+    </div>
+
+    <div id="settings-backdrop"></div>
+    <div id="settings" role="dialog" aria-label="Réglages" aria-hidden="true">
+      <h2>⚙️ Réglages <button class="close" id="settings-close" aria-label="Fermer">✕</button></h2>
+      <div class="setting">
+        <div class="setting-label">Qualité graphique</div>
+        <div class="segmented" id="quality-seg">
+          <button data-q="auto">Auto</button>
+          <button data-q="low">Basse</button>
+          <button data-q="medium">Moyenne</button>
+          <button data-q="high">Haute</button>
+        </div>
+        <p class="setting-note">Si le jeu rame, choisis « Basse ». Changer de qualité recharge la partie (sauvegardée automatiquement).</p>
+      </div>
+      <div class="setting">
+        <div class="setting-label">Performances</div>
+        <button id="perf-toggle" class="ghost-btn">Afficher les FPS</button>
+      </div>
     </div>
 
     <div id="perf"></div>

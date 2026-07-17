@@ -16,6 +16,7 @@ import {
   Vector3,
   WebGLRenderer,
 } from "three";
+import type { QualityLevel } from "./quality";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
@@ -82,23 +83,25 @@ export class SceneRenderer {
   private settlements: SettlementLayer | null = null;
   private lastFrameAt: number | null = null;
 
-  /** Plafond de résolution (device pixel ratio) — abaissé sur appareil modeste. */
+  /** Plafond de résolution (device pixel ratio) selon le palier de qualité. */
   private readonly maxPixelRatio: number;
-  /** Rendu allégé (mobile / GPU modeste) : ni bloom, ni MSAA, ombres réduites. */
-  private readonly lowSpec: boolean;
+  /** Bloom actif (palier « Haute » seulement — poste de rendu le plus lourd). */
+  private readonly bloomEnabled: boolean;
 
   constructor(
     readonly canvas: HTMLCanvasElement,
     private readonly sim: Simulation,
-    opts: { lowSpec?: boolean } = {},
+    opts: { quality?: QualityLevel } = {},
   ) {
-    this.lowSpec = opts.lowSpec ?? false;
-    // Résolution native (1×) sur appareil modeste : c'est le levier de fill-rate
-    // le plus fort (un écran à 3× rend ~9× plus de pixels).
-    this.maxPixelRatio = this.lowSpec ? 1 : 2;
-    // MSAA coûte cher en fill-rate : désactivé sur appareil modeste (la basse
-    // résolution + le style low-poly rendent l'aliasing peu gênant).
-    this.renderer = new WebGLRenderer({ canvas, antialias: !this.lowSpec, powerPreference: "high-performance" });
+    // Palier de qualité → réglages de rendu (résolution, MSAA, bloom, ombres).
+    const quality = opts.quality ?? "high";
+    this.bloomEnabled = quality === "high";
+    // Résolution : native (1×) en bas, 1,5× en moyen, 2× en haut. C'est le levier
+    // de fill-rate le plus fort (un écran à 3× rend ~9× plus de pixels).
+    this.maxPixelRatio = quality === "low" ? 1 : quality === "medium" ? 1.5 : 2;
+    // MSAA (anticrénelage) seulement en « Haute » : coûteux en fill-rate.
+    const antialias = quality === "high";
+    this.renderer = new WebGLRenderer({ canvas, antialias, powerPreference: "high-performance" });
     // Rendu « cinématographique » : tone-mapping ACES + sortie sRGB + ombres douces.
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.toneMapping = ACESFilmicToneMapping;
@@ -107,9 +110,9 @@ export class SceneRenderer {
     // three r185 a déprécié PCFSoftShadowMap (rétrogradé en PCFShadowMap avec un
     // avertissement console). On demande directement PCFShadowMap : même rendu,
     // sans le warning à chaque lancement.
-    // Ombres filtrées (PCF) sur desktop ; brutes (Basic, sans filtrage — le moins
-    // cher) sur appareil modeste.
-    this.renderer.shadowMap.type = this.lowSpec ? BasicShadowMap : PCFShadowMap;
+    // Ombres filtrées (PCF) dès le palier moyen ; brutes (Basic, sans filtrage —
+    // le moins cher) au palier bas.
+    this.renderer.shadowMap.type = quality === "low" ? BasicShadowMap : PCFShadowMap;
 
     const { width, height } = sim.terrain;
     this.rig = new CameraRig(1, width / 2, height / 2);
@@ -151,15 +154,15 @@ export class SceneRenderer {
     // Le bloom (UnrealBloom ≈ 10 passes de flou) est le poste le plus lourd sur
     // mobile : on ne l'ajoute qu'en rendu « haut ».
     this.bloom = new UnrealBloomPass(new Vector2(1, 1), 0.32, 0.5, 1.12);
-    if (!this.lowSpec) this.composer.addPass(this.bloom);
+    if (this.bloomEnabled) this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
 
     // Soleil directionnel chaud, projetant des ombres douces sur le relief.
     this.sun = new DirectionalLight(0xfff0d6, DAY_SUN_INTENSITY);
     this.sun.target.position.set(width / 2, 0, height / 2);
     this.sun.castShadow = true;
-    // Carte d'ombres réduite sur appareil modeste (2048² → 1024² : 4× moins de texels).
-    const shadowRes = this.lowSpec ? 1024 : 2048;
+    // Carte d'ombres pleine en « Haute » (2048²), réduite ailleurs (1024² : 4× moins de texels).
+    const shadowRes = quality === "high" ? 2048 : 1024;
     this.sun.shadow.mapSize.set(shadowRes, shadowRes);
     this.sun.shadow.bias = -0.0006;
     const shadowCam = this.sun.shadow.camera;
@@ -200,7 +203,7 @@ export class SceneRenderer {
     this.renderer.setSize(this.viewW, this.viewH, false);
     this.composer.setPixelRatio(ratio);
     this.composer.setSize(this.viewW, this.viewH);
-    if (!this.lowSpec) this.bloom.setSize(this.viewW / 2, this.viewH / 2); // bloom demi-résolution
+    if (this.bloomEnabled) this.bloom.setSize(this.viewW / 2, this.viewH / 2); // bloom demi-résolution
     this.rig.setAspect(this.viewW / this.viewH);
   }
 

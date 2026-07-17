@@ -7,6 +7,8 @@ import { Grimoire } from "../ui/Grimoire";
 import { Hud } from "../ui/Hud";
 import { InputController, type GamePersistence } from "../ui/InputController";
 import { PerfOverlay } from "../ui/PerfOverlay";
+import { Settings } from "../ui/Settings";
+import { loadQualityChoice, resolveQuality, saveQualityChoice } from "./quality";
 import { GameLoop } from "./GameLoop";
 
 const SAVE_KEY = "img:save";
@@ -28,11 +30,11 @@ function startGame(params: URLSearchParams): void {
 
   const canvas = document.getElementById("game") as HTMLCanvasElement;
 
-  const lowSpec = detectLowSpec();
-  const renderer = new SceneRenderer(canvas, sim, { lowSpec });
+  const qualityChoice = loadQualityChoice();
+  const quality = resolveQuality(qualityChoice);
+  const renderer = new SceneRenderer(canvas, sim, { quality });
   const hud = new Hud();
   const perf = new PerfOverlay(document.getElementById("perf")!, sim);
-  document.getElementById("btn-settings")?.addEventListener("click", () => perf.toggle());
   const loop = new GameLoop(sim, () => {
     renderer.render(sim);
     hud.update(sim, { paused: loop.paused, speed: loop.speed });
@@ -56,6 +58,17 @@ function startGame(params: URLSearchParams): void {
 
   const input = new InputController(canvas, renderer, sim, loop, persistence);
   input.attach();
+
+  // Réglages (⚙️) : qualité graphique + affichage des perfs. Changer la qualité
+  // sauvegarde la partie puis recharge (l'anticrénelage est figé à la création
+  // du contexte WebGL — un rechargement garantit un rendu cohérent).
+  new Settings(qualityChoice, (choice) => {
+    saveQualityChoice(choice);
+    persistence.save();
+    const url = new URL(window.location.href);
+    url.searchParams.set("load", "1");
+    window.location.href = url.toString();
+  }, perf);
 
   // Grimoire : onglet dédié qui pilote la sélection du pouvoir actif.
   const grimoire = new Grimoire(sim, (meta) => input.setActivePower(meta));
@@ -123,8 +136,11 @@ function startGame(params: URLSearchParams): void {
     }
     renderer.enableInhabitants(sim); // villageois procéduraux (tenue par ère)
     void renderer.enableSettlements();
-    // Moins de faune sur appareil modeste (moins d'instances animées + d'ombres).
-    if (sim.fauna.count === 0) sim.fauna.populate(lowSpec ? 40 : 80, lowSpec ? 6 : 12);
+    // Densité de faune selon le palier (moins d'instances animées + d'ombres en bas).
+    if (sim.fauna.count === 0) {
+      const [herbivores, predators] = quality === "low" ? [40, 6] : quality === "medium" ? [60, 9] : [80, 12];
+      sim.fauna.populate(herbivores, predators);
+    }
     void renderer.enableFauna(sim, ["models/animals/Horse.glb", "models/animals/Fox.glb"]);
 
     // Caméra : on démarre CENTRÉ sur son peuple. Un monde neuf → gros plan sur
@@ -216,19 +232,6 @@ function restoreOrCreate(params: URLSearchParams, seed: number): Simulation {
     }
   }
   return new Simulation({ seed, now });
-}
-
-/**
- * Appareil modeste (mobile / GPU faible) → rendu allégé (pas de bloom ni MSAA,
- * ombres et résolution réduites). Vrai dès qu'un signe de mobilité apparaît :
- * pointeur grossier (tactile), user-agent mobile, peu de cœurs ou peu de RAM.
- */
-function detectLowSpec(): boolean {
-  const coarse = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
-  const mobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-  const fewCores = (navigator.hardwareConcurrency ?? 8) <= 4;
-  const lowMem = ((navigator as unknown as { deviceMemory?: number }).deviceMemory ?? 8) <= 4;
-  return coarse || mobileUA || fewCores || lowMem;
 }
 
 /**
