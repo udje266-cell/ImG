@@ -81,11 +81,21 @@ export class SceneRenderer {
   private settlements: SettlementLayer | null = null;
   private lastFrameAt: number | null = null;
 
+  /** Plafond de résolution (device pixel ratio) — abaissé sur appareil modeste. */
+  private readonly maxPixelRatio: number;
+  /** Rendu allégé (mobile / GPU modeste) : ni bloom, ni MSAA, ombres réduites. */
+  private readonly lowSpec: boolean;
+
   constructor(
     readonly canvas: HTMLCanvasElement,
     private readonly sim: Simulation,
+    opts: { lowSpec?: boolean } = {},
   ) {
-    this.renderer = new WebGLRenderer({ canvas, antialias: true });
+    this.lowSpec = opts.lowSpec ?? false;
+    this.maxPixelRatio = this.lowSpec ? 1.3 : 2;
+    // MSAA coûte cher en fill-rate : désactivé sur appareil modeste (la basse
+    // résolution + le style low-poly rendent l'aliasing peu gênant).
+    this.renderer = new WebGLRenderer({ canvas, antialias: !this.lowSpec, powerPreference: "high-performance" });
     // Rendu « cinématographique » : tone-mapping ACES + sortie sRGB + ombres douces.
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.toneMapping = ACESFilmicToneMapping;
@@ -133,15 +143,19 @@ export class SceneRenderer {
     this.composer.addPass(new RenderPass(this.scene, this.rig.camera));
     // Seuil > 1 : en HDR linéaire, seuls les émissifs vraiment brillants
     // (flammes, lune, éclats) débordent — jamais le terrain ensoleillé.
+    // Le bloom (UnrealBloom ≈ 10 passes de flou) est le poste le plus lourd sur
+    // mobile : on ne l'ajoute qu'en rendu « haut ».
     this.bloom = new UnrealBloomPass(new Vector2(1, 1), 0.32, 0.5, 1.12);
-    this.composer.addPass(this.bloom);
+    if (!this.lowSpec) this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
 
     // Soleil directionnel chaud, projetant des ombres douces sur le relief.
     this.sun = new DirectionalLight(0xfff0d6, DAY_SUN_INTENSITY);
     this.sun.target.position.set(width / 2, 0, height / 2);
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
+    // Carte d'ombres réduite sur appareil modeste (2048² → 1024² : 4× moins de texels).
+    const shadowRes = this.lowSpec ? 1024 : 2048;
+    this.sun.shadow.mapSize.set(shadowRes, shadowRes);
     this.sun.shadow.bias = -0.0006;
     const shadowCam = this.sun.shadow.camera;
     const extent = Math.max(width, height) * 0.62;
@@ -176,12 +190,12 @@ export class SceneRenderer {
   resize(): void {
     this.viewW = this.canvas.clientWidth;
     this.viewH = this.canvas.clientHeight;
-    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const ratio = Math.min(window.devicePixelRatio || 1, this.maxPixelRatio);
     this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(this.viewW, this.viewH, false);
     this.composer.setPixelRatio(ratio);
     this.composer.setSize(this.viewW, this.viewH);
-    this.bloom.setSize(this.viewW / 2, this.viewH / 2); // bloom demi-résolution (mobile)
+    if (!this.lowSpec) this.bloom.setSize(this.viewW / 2, this.viewH / 2); // bloom demi-résolution
     this.rig.setAspect(this.viewW / this.viewH);
   }
 

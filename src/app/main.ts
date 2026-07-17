@@ -16,8 +16,8 @@ const SAVE_KEY = "img:save";
  * wired together. `?seed=<n>` régénère un monde ; `?load=1` reprend la
  * sauvegarde locale ; `?showcase=1` ouvre l'asset viewer.
  */
-function boot(): void {
-  const params = new URLSearchParams(window.location.search);
+function startGame(params: URLSearchParams): void {
+  document.getElementById("home")?.remove(); // masque le menu d'accueil s'il était affiché
   const seed = Number.parseInt(params.get("seed") ?? "1337", 10) || 1337;
 
   const sim = restoreOrCreate(params, seed);
@@ -28,7 +28,7 @@ function boot(): void {
 
   const canvas = document.getElementById("game") as HTMLCanvasElement;
 
-  const renderer = new SceneRenderer(canvas, sim);
+  const renderer = new SceneRenderer(canvas, sim, { lowSpec: detectLowSpec() });
   const hud = new Hud();
   const perf = new PerfOverlay(document.getElementById("perf")!, sim);
   document.getElementById("btn-settings")?.addEventListener("click", () => perf.toggle());
@@ -115,6 +115,7 @@ function boot(): void {
     // fondera le premier village (puis les suivants), et ainsi de suite.
     if (freshWorld) {
       sim.genesis();
+      sim.clock.tick = 120; // démarre en plein jour : on voit tout de suite les Deux Premiers
       hud.flash("Au commencement : un homme et une femme. Guide-les. 🌍");
       // Rappel du cœur du jeu : le peuple ne bâtit que sur du plat.
       window.setTimeout(() => hud.flash("Aplanis la terre : ton peuple ne bâtit que sur du plat. ⛰️→▦"), 3200);
@@ -123,6 +124,26 @@ function boot(): void {
     void renderer.enableSettlements();
     if (sim.fauna.count === 0) sim.fauna.populate(80, 12); // herbivores, prédateurs
     void renderer.enableFauna(sim, ["models/animals/Horse.glb", "models/animals/Fox.glb"]);
+
+    // Caméra : on démarre CENTRÉ sur son peuple. Un monde neuf → gros plan sur
+    // les Deux Premiers (sinon deux silhouettes de 0,8 u sont invisibles de loin) ;
+    // une partie reprise → vue rapprochée sur le barycentre de la population.
+    const snap = sim.agents.snapshot();
+    if (snap.count > 0) {
+      let mx = 0;
+      let mz = 0;
+      for (let i = 0; i < snap.count; i++) {
+        mx += snap.x[i]!;
+        mz += snap.y[i]!;
+      }
+      // Vise la mi-hauteur des silhouettes (y≈0.5) pour les caler au centre de l'écran.
+      renderer.rig.target.set(mx / snap.count, freshWorld ? 0.5 : 0, mz / snap.count);
+      renderer.rig.distance = freshWorld ? 16 : 70;
+      // Angle plus rasant à la Genèse : les Deux Premiers paraissent plus grands
+      // (vue de trois-quarts plutôt que plongée verticale).
+      if (freshWorld) renderer.rig.pitch = 0.62;
+      renderer.rig.update();
+    }
   }
 
   // Mode validation des modèles 3D : ?showcase=1 pose personnages et animaux
@@ -193,6 +214,60 @@ function restoreOrCreate(params: URLSearchParams, seed: number): Simulation {
     }
   }
   return new Simulation({ seed, now });
+}
+
+/**
+ * Appareil modeste (mobile / GPU faible) → rendu allégé (pas de bloom ni MSAA,
+ * ombres et résolution réduites). Vrai dès qu'un signe de mobilité apparaît :
+ * pointeur grossier (tactile), user-agent mobile, peu de cœurs ou peu de RAM.
+ */
+function detectLowSpec(): boolean {
+  const coarse = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
+  const mobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  const fewCores = (navigator.hardwareConcurrency ?? 8) <= 4;
+  const lowMem = ((navigator as unknown as { deviceMemory?: number }).deviceMemory ?? 8) <= 4;
+  return coarse || mobileUA || fewCores || lowMem;
+}
+
+/**
+ * Menu d'accueil : titre + « Nouvelle partie » / « Continuer » (activé si une
+ * sauvegarde existe). Le jeu ne démarre qu'au choix du joueur (plus de partie
+ * qui s'ouvre brutalement sans écran d'accueil).
+ */
+function showHomeMenu(onNew: () => void, onContinue: () => void): void {
+  const home = document.getElementById("home");
+  const btnNew = document.getElementById("home-new");
+  const btnContinue = document.getElementById("home-continue") as HTMLButtonElement | null;
+  if (!home || !btnNew || !btnContinue) {
+    onNew(); // repli : pas de menu dans le DOM → on démarre directement
+    return;
+  }
+  home.style.display = "flex";
+  if (window.localStorage.getItem(SAVE_KEY) === null) btnContinue.setAttribute("disabled", "");
+  btnNew.addEventListener("click", onNew);
+  btnContinue.addEventListener("click", onContinue);
+}
+
+/**
+ * Point d'entrée. Les modes techniques (tests e2e `?debug`, reprise directe
+ * `?load`, `?showcase`) démarrent sans menu ; un lancement normal ouvre l'écran
+ * d'accueil et attend le choix du joueur.
+ */
+function boot(): void {
+  const params = new URLSearchParams(window.location.search);
+  if (params.has("showcase") || params.has("debug") || params.has("load")) {
+    startGame(params);
+    return;
+  }
+  showHomeMenu(
+    () => startGame(params),
+    () => {
+      // « Continuer » : recharge en mode reprise (le menu est alors court-circuité).
+      const url = new URL(window.location.href);
+      url.searchParams.set("load", "1");
+      window.location.href = url.toString();
+    },
+  );
 }
 
 boot();

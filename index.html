@@ -17,6 +17,30 @@
         font-family: "Segoe UI", system-ui, -apple-system, sans-serif; }
       #game { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: crosshair; }
 
+      /* --- Menu d'accueil --- */
+      #home {
+        position: fixed; inset: 0; z-index: 100; display: none;
+        flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+        padding: 24px; text-align: center; color: var(--text);
+        background: radial-gradient(130% 100% at 50% 22%, #182946 0%, #0b0e14 68%);
+      }
+      #home .title {
+        margin: 0; font-size: clamp(44px, 10vw, 96px); font-weight: 800; letter-spacing: 3px;
+        color: var(--accent); text-shadow: 0 2px 30px rgba(255, 214, 110, 0.35);
+      }
+      #home .subtitle { margin: 0 0 6px; max-width: 34ch; line-height: 1.5; font-size: clamp(14px, 2.4vw, 19px); opacity: 0.85; }
+      #home .menu { display: flex; flex-direction: column; gap: 12px; width: min(340px, 82vw); }
+      #home button {
+        font-size: 18px; font-weight: 700; padding: 14px 20px; border-radius: 14px;
+        border: 1px solid var(--panel-border); cursor: pointer; color: #14180f; background: var(--accent);
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4); transition: transform 0.1s, filter 0.15s;
+      }
+      #home button.ghost { background: var(--panel); color: var(--text); }
+      #home button:hover { filter: brightness(1.08); }
+      #home button:active { transform: translateY(1px); }
+      #home button:disabled { opacity: 0.4; cursor: not-allowed; }
+      #home .hint { margin: 8px 0 0; font-size: 12px; opacity: 0.6; }
+
       /* --- Ressources (haut-gauche), en pastilles --- */
       #resources {
         position: fixed; top: calc(10px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left));
@@ -129,6 +153,16 @@
   </head>
   <body>
     <canvas id="game"></canvas>
+
+    <div id="home">
+      <h1 class="title">ImG</h1>
+      <p class="subtitle">Tu es le dieu d'un peuple. Guide un homme et une femme, façonne leur monde et fais grandir ta foi à travers les âges.</p>
+      <div class="menu">
+        <button id="home-new">🌍 Nouvelle partie</button>
+        <button id="home-continue" class="ghost">↩ Continuer</button>
+      </div>
+      <p class="hint">Aplanis la terre pour que ton peuple puisse bâtir.</p>
+    </div>
 
     <div id="resources">
       <div class="pill" title="Foi"><span class="ico">💎</span><span id="faith-val">—</span><span class="bar"><i id="faith-bar"></i></span></div>
