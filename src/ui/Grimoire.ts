@@ -15,11 +15,12 @@ export class Grimoire {
   private readonly body: HTMLElement;
   private readonly openBtn: HTMLElement | null;
   private readonly label: HTMLElement | null;
-  private selectedKey = "raise";
+  /** Pouvoir sélectionné, ou `null` en mode « Main » (aucun pouvoir armé). */
+  private selectedKey: string | null = "raise";
 
   constructor(
     private readonly sim: Simulation,
-    private readonly onSelect: (meta: PowerMeta) => void,
+    private readonly onSelect: (meta: PowerMeta | null) => void,
   ) {
     this.panel = document.getElementById("grimoire")!;
     this.backdrop = document.getElementById("grimoire-backdrop")!;
@@ -33,6 +34,8 @@ export class Grimoire {
     // Boutons rapides Élever / Abaisser : même circuit de sélection.
     document.getElementById("tool-raise")?.addEventListener("click", () => this.select("raise"));
     document.getElementById("tool-lower")?.addEventListener("click", () => this.select("lower"));
+    // Main : désarme tout pouvoir → un doigt déplace la carte.
+    document.getElementById("tool-hand")?.addEventListener("click", () => this.deselect());
 
     this.sim.bus.on("progression:powerUnlocked", () => this.render());
     this.render();
@@ -42,14 +45,25 @@ export class Grimoire {
     return meta.power !== null && this.sim.progression.isUnlocked(meta.power);
   }
 
-  /** Tente de sélectionner un pouvoir ; ignore s'il est verrouillé/à venir. */
+  /** Tente de sélectionner un pouvoir ; re-tapé, il se **désarme** (mode Main). */
   select(key: string): void {
     const meta = POWER_CATALOG.find((m) => m.key === key);
     if (!meta || !this.available(meta)) return;
+    if (this.selectedKey === key) {
+      this.deselect(); // re-tap sur le pouvoir actif → on le désarme
+      return;
+    }
     this.selectedKey = key;
     this.onSelect(meta);
     this.refreshActiveStates();
     if (this.panel.classList.contains("open")) this.close();
+  }
+
+  /** Désarme tout pouvoir : mode « Main » (un doigt déplace la carte). */
+  deselect(): void {
+    this.selectedKey = null;
+    this.onSelect(null);
+    this.refreshActiveStates();
   }
 
   /** Met à jour les surbrillances (chips + boutons rapides + libellé). */
@@ -59,8 +73,9 @@ export class Grimoire {
     }
     document.getElementById("tool-raise")?.classList.toggle("active", this.selectedKey === "raise");
     document.getElementById("tool-lower")?.classList.toggle("active", this.selectedKey === "lower");
-    const meta = POWER_CATALOG.find((m) => m.key === this.selectedKey);
-    if (this.label && meta) this.label.textContent = meta.name;
+    document.getElementById("tool-hand")?.classList.toggle("active", this.selectedKey === null);
+    const meta = this.selectedKey ? POWER_CATALOG.find((m) => m.key === this.selectedKey) : null;
+    if (this.label) this.label.textContent = meta ? meta.name : "Main";
   }
 
   /** (Re)construit la liste des pouvoirs groupés par école. */

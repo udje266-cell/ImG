@@ -85,6 +85,21 @@ describe("AgentSystem (docs/GDD.md §4)", () => {
     expect(sim.faith.current).toBeGreaterThan(before);
   });
 
+  it("les habitants vieillissent et meurent (mortalité — ce sont des humains)", () => {
+    const g = greenGrid();
+    const rng = new Rng(3);
+    const flora = new FloraSystem(g, rng); // pas de flora.update() → aucune nourriture
+    const a = new AgentSystem(g, flora, rng, new EventBus<GameEvents>());
+    a.populate(12);
+    const before = a.count;
+    // Sans nourriture, la faim monte → maladie → des morts (et aucune naissance).
+    for (let t = 0; t < 40000; t++) a.update(t);
+    expect(a.count).toBeLessThan(before); // des habitants sont morts
+    expect(a.count).toBeGreaterThanOrEqual(2); // …mais le peuple ne s'éteint jamais
+    // L'âge (en années) s'expose dans la fiche : les survivants ont vieilli.
+    expect(a.profile(0).age).toBeGreaterThanOrEqual(1);
+  });
+
   it("evangelize accumule la conviction puis convertit au seuil (pas les siens)", () => {
     const a = makeAgents();
     const mine = a.spawn(10, 10); // fidèle du joueur (faction 0)

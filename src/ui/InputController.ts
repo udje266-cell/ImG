@@ -36,8 +36,12 @@ const SCULPT_THROTTLE_MS = 90;
  */
 export class InputController {
   brushRadius = 6;
-  /** Pouvoir actif sélectionné dans le grimoire (défaut : Soulèvement). */
-  activePower: PowerMeta = RAISE_META;
+  /**
+   * Pouvoir actif sélectionné dans le grimoire (défaut : Soulèvement). `null` =
+   * mode « Main » : aucun pouvoir armé → un doigt déplace la carte (on peut
+   * ainsi se balader librement et désélectionner un pouvoir).
+   */
+  activePower: PowerMeta | null = RAISE_META;
 
   private readonly pointers = new Map<number, { x: number; y: number }>();
   private panning = false;
@@ -45,6 +49,7 @@ export class InputController {
   private shiftHeld = false;
   private lastIntentAt = 0;
   private lastPinchDistance = 0;
+  private lastCentroid: { x: number; y: number } | null = null;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -76,8 +81,8 @@ export class InputController {
     }
   }
 
-  /** Sélectionne le pouvoir actif (appelé par le grimoire). */
-  setActivePower(meta: PowerMeta): void {
+  /** Sélectionne le pouvoir actif (appelé par le grimoire) ; `null` = mode Main. */
+  setActivePower(meta: PowerMeta | null): void {
     this.activePower = meta;
   }
 
@@ -86,13 +91,19 @@ export class InputController {
     this.pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
 
     if (this.pointers.size === 2) {
-      // Second finger down: switch from sculpting to camera gestures.
+      // Second finger down: switch from sculpting to camera gestures (pan + zoom).
       this.sculpting = false;
       this.panning = false;
       this.lastPinchDistance = this.pinchDistance();
+      this.lastCentroid = this.centroid();
       return;
     }
     if (e.pointerType === "mouse" && e.button !== 0) {
+      this.panning = true;
+      return;
+    }
+    // Mode « Main » (aucun pouvoir armé) : un doigt déplace la carte.
+    if (this.activePower === null) {
       this.panning = true;
       return;
     }
@@ -121,26 +132,45 @@ export class InputController {
 
   private readonly onPointerEnd = (e: PointerEvent): void => {
     this.pointers.delete(e.pointerId);
-    if (this.pointers.size < 2) this.lastPinchDistance = 0;
+    if (this.pointers.size < 2) {
+      this.lastPinchDistance = 0;
+      this.lastCentroid = null;
+    }
     if (this.pointers.size === 0) {
       this.panning = false;
       this.sculpting = false;
     }
   };
 
-  /** Two-finger pan (centroid drag) + pinch zoom (distance ratio). */
+  /** Two-finger PAN (centroid drag) + pinch zoom (distance ratio) — navigation toujours dispo. */
   private twoFingerGesture(): void {
     const distance = this.pinchDistance();
+    const centroid = this.centroid();
     if (this.lastPinchDistance > 0 && distance > 0) {
       this.renderer.rig.dolly(this.lastPinchDistance / distance);
     }
+    if (this.lastCentroid && centroid) {
+      this.renderer.rig.panByScreen(
+        centroid.x - this.lastCentroid.x,
+        centroid.y - this.lastCentroid.y,
+        this.renderer.height,
+      );
+    }
     this.lastPinchDistance = distance;
+    this.lastCentroid = centroid;
   }
 
   private pinchDistance(): number {
     const [a, b] = [...this.pointers.values()];
     if (!a || !b) return 0;
     return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  /** Milieu des deux doigts (pour le pan à deux doigts). */
+  private centroid(): { x: number; y: number } | null {
+    const [a, b] = [...this.pointers.values()];
+    if (!a || !b) return null;
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
   }
 
   private readonly onWheel = (e: WheelEvent): void => {
@@ -195,7 +225,7 @@ export class InputController {
     this.lastIntentAt = now;
 
     const meta = this.activePower;
-    if (!meta.power) return; // pouvoir « à venir » : rien à invoquer
+    if (!meta || !meta.power) return; // mode Main, ou pouvoir « à venir » : rien à invoquer
 
     let invocation: PowerInvocation;
     if (meta.power === "terraform") {

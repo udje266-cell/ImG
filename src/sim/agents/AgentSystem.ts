@@ -3,6 +3,7 @@ import type { EventBus } from "../../core/events/EventBus";
 import type { GameEvents } from "../events";
 import { BARE_THRESHOLD, type FloraSystem } from "../ecology/FloraSystem";
 import type { TerrainGrid } from "../terrain/TerrainGrid";
+import { DAYS_PER_YEAR, TICKS_PER_DAY } from "../../core/time/GameClock";
 
 /**
  * Habitants (docs/GDD.md §4, cahier des charges §5 & §8) — IA vivante.
@@ -36,6 +37,19 @@ const BIRTH_CHECK_INTERVAL = 400;
 const BIRTH_HUNGER_MAX = 0.35; // il faut être bien nourri…
 const BIRTH_FATIGUE_MAX = 0.6; // …et pas épuisé
 const BIRTH_CHANCE = 0.3;
+/**
+ * Mortalité — car ce sont des humains. L'âge s'accumule chaque tick et l'on
+ * meurt : de **vieillesse** (probabilité croissante au-delà d'un certain âge)
+ * ou de **maladie** (petit risque de base, aggravé par la faim et la fatigue —
+ * un peuple négligé s'éteint plus vite). Vérifié à la même cadence que les
+ * naissances (par habitant, décalé), pour un coût lissé.
+ */
+const TICKS_PER_YEAR = TICKS_PER_DAY * DAYS_PER_YEAR; // 11 520 ticks
+const OLD_AGE_ONSET = TICKS_PER_YEAR * 2.5; // la vieillesse commence à peser
+const OLD_AGE_SPREAD = TICKS_PER_YEAR * 2.5; // et emporte presque sûrement ~2,5 ans plus tard
+const DISEASE_BASE = 0.004; // risque de maladie par contrôle chez un habitant sain
+/** On ne laisse jamais le peuple s'éteindre : au moins ce nombre d'âmes survit. */
+const MIN_SURVIVORS = 2;
 export const MAX_POPULATION = 300;
 /**
  * Faction du **joueur** (le dieu incarné par le joueur) : id 0. Les autres
@@ -109,6 +123,8 @@ export const EMOTION_LABEL: Record<Emotion, string> = {
 export interface AgentProfile {
   index: number;
   profession: string;
+  /** Âge en années (in-game). */
+  age: number;
   traits: { piety: number; courage: number; curiosity: number; sociability: number };
   dominantEmotion: string;
   emotions: { joy: number; fear: number; anger: number; grief: number };
@@ -153,6 +169,8 @@ export class AgentSystem {
   private readonly fear: number[] = [];
   private readonly anger: number[] = [];
   private readonly grief: number[] = [];
+  /** Âge en ticks (s'accumule chaque tick) — pilote la mort de vieillesse. */
+  private readonly age: number[] = [];
   private readonly profession: Profession[] = [];
   // Famille : index du conjoint et des deux parents (-1 = aucun).
   private readonly spouse: number[] = [];
@@ -496,7 +514,7 @@ export class AgentSystem {
     if (w === n) return;
     const numeric = [
       this.px, this.py, this.hunger, this.fatigue, this.fervour, this.piety, this.courage,
-      this.curiosity, this.sociability, this.joy, this.fear, this.anger, this.grief,
+      this.curiosity, this.sociability, this.joy, this.fear, this.anger, this.grief, this.age,
       this.spouse, this.parentA, this.parentB, this.targetX, this.targetY, this.homeX,
       this.homeY, this.beckonX, this.beckonY, this.beckonTicks, this.workX, this.workY,
       this.allegiance, this.conviction,
@@ -563,6 +581,7 @@ export class AgentSystem {
     this.fear.push(0);
     this.anger.push(0);
     this.grief.push(0);
+    this.age.push(0); // né à l'instant
     this.spouse.push(-1);
     this.parentA.push(-1);
     this.parentB.push(-1);
@@ -651,11 +670,23 @@ export class AgentSystem {
   update(tick: number): void {
     // Borne figée : les enfants nés ce tick ne sont mis à jour qu'au suivant.
     const n = this.px.length;
+    const victims: number[] = []; // morts de ce tick, retirés après la boucle
     for (let i = 0; i < n; i++) {
       // Besoins qui montent avec le temps.
       this.hunger[i] = Math.min(1, this.hunger[i]! + 0.0008);
       this.fatigue[i] = Math.min(1, this.fatigue[i]! + 0.0006);
       this.decayEmotions(i);
+
+      // Vieillissement + mort (vieillesse ou maladie) — car ce sont des humains.
+      // Contrôle décalé par habitant (même cadence que les naissances).
+      this.age[i] = this.age[i]! + 1;
+      if ((tick + i * 53) % BIRTH_CHECK_INTERVAL === 0) {
+        // Maladie : faible risque de base, aggravé par la faim et la fatigue.
+        let p = DISEASE_BASE + this.hunger[i]! * 0.06 + this.fatigue[i]! * 0.03;
+        // Vieillesse : le risque grimpe passé le seuil et devient presque certain.
+        if (this.age[i]! > OLD_AGE_ONSET) p += Math.min(0.9, (this.age[i]! - OLD_AGE_ONSET) / OLD_AGE_SPREAD);
+        if (this.rng.float() < p) victims.push(i);
+      }
 
       // Naissance : un habitant prospère (nourri, reposé) fonde une famille.
       // L'enfant naît au foyer (le village) — la population croît avec la
@@ -690,6 +721,14 @@ export class AgentSystem {
         this.decide(i);
       }
       this.act(i);
+    }
+
+    // Retire les morts du tick (liens de famille ré-adressés par `compact`), sans
+    // jamais éteindre le peuple : on garde toujours au moins MIN_SURVIVORS âmes.
+    if (victims.length > 0) {
+      const maxDeaths = Math.max(0, this.px.length - MIN_SURVIVORS);
+      const dead = new Set(maxDeaths >= victims.length ? victims : victims.slice(0, maxDeaths));
+      if (dead.size > 0) this.compact((i) => !dead.has(i));
     }
   }
 
@@ -853,6 +892,7 @@ export class AgentSystem {
     return {
       index: i,
       profession: PROFESSION_LABEL[this.profession[i]!],
+      age: Math.floor((this.age[i] ?? 0) / TICKS_PER_YEAR),
       traits: {
         piety: this.piety[i]!,
         courage: this.courage[i]!,
@@ -889,7 +929,7 @@ export class AgentSystem {
   serialize(): {
     px: number[]; py: number[]; hunger: number[]; fatigue: number[]; fervour: number[];
     piety: number[]; courage: number[]; curiosity: number[]; sociability: number[];
-    joy: number[]; fear: number[]; anger: number[]; grief: number[];
+    joy: number[]; fear: number[]; anger: number[]; grief: number[]; age: number[];
     profession: number[]; spouse: number[]; parentA: number[]; parentB: number[];
     homeX: number[]; homeY: number[]; allegiance: number[];
     rngState: number; personaRngState: number; era: number;
@@ -899,6 +939,7 @@ export class AgentSystem {
       fervour: [...this.fervour], piety: [...this.piety], courage: [...this.courage],
       curiosity: [...this.curiosity], sociability: [...this.sociability],
       joy: [...this.joy], fear: [...this.fear], anger: [...this.anger], grief: [...this.grief],
+      age: [...this.age],
       profession: this.profession.map((p) => PROFESSION_CODES[p]),
       spouse: [...this.spouse], parentA: [...this.parentA], parentB: [...this.parentB],
       homeX: [...this.homeX], homeY: [...this.homeY], allegiance: [...this.allegiance],
@@ -925,6 +966,7 @@ export class AgentSystem {
       this.fear.push(data.fear?.[i] ?? 0);
       this.anger.push(data.anger?.[i] ?? 0);
       this.grief.push(data.grief?.[i] ?? 0);
+      this.age.push(data.age?.[i] ?? 0); // sauvegardes d'avant la mortalité : nés « jeunes »
       this.profession.push(professionNames[data.profession?.[i] ?? 0] ?? "hunter");
       this.spouse.push(data.spouse?.[i] ?? -1);
       this.parentA.push(data.parentA?.[i] ?? -1);
@@ -955,7 +997,7 @@ export class AgentSystem {
   private clearAll(): void {
     const arrays = [
       this.px, this.py, this.hunger, this.fatigue, this.fervour, this.piety, this.courage,
-      this.curiosity, this.sociability, this.joy, this.fear, this.anger, this.grief,
+      this.curiosity, this.sociability, this.joy, this.fear, this.anger, this.grief, this.age,
       this.spouse, this.parentA, this.parentB, this.targetX, this.targetY, this.homeX,
       this.homeY, this.beckonX, this.beckonY, this.beckonTicks, this.workX, this.workY,
       this.allegiance, this.conviction,

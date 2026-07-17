@@ -225,7 +225,7 @@ const EMPTY_FLORA: FloraState = { density: [], rngState: 0 };
 const EMPTY_AGENTS: AgentsState = {
   px: [], py: [], hunger: [], fatigue: [], fervour: [], piety: [], courage: [], curiosity: [],
   sociability: [], joy: [], fear: [], anger: [], grief: [], profession: [], spouse: [], parentA: [],
-  parentB: [], homeX: [], homeY: [], allegiance: [], rngState: 0, personaRngState: 0, era: 0,
+  parentB: [], homeX: [], homeY: [], allegiance: [], age: [], rngState: 0, personaRngState: 0, era: 0,
 };
 const EMPTY_FAUNA: FaunaState = { px: [], py: [], energy: [], species: [], cooldown: [], rngState: 0 };
 const EMPTY_SETTLEMENTS: SettlementsState = { vx: [], vy: [], vpop: [], vhuts: [], vfaction: [], dx: [], dy: [], fx: [], fy: [] };

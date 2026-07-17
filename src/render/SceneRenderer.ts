@@ -6,6 +6,7 @@ import {
   HemisphereLight,
   Mesh,
   MeshBasicMaterial,
+  BasicShadowMap,
   PCFShadowMap,
   Raycaster,
   RingGeometry,
@@ -92,7 +93,9 @@ export class SceneRenderer {
     opts: { lowSpec?: boolean } = {},
   ) {
     this.lowSpec = opts.lowSpec ?? false;
-    this.maxPixelRatio = this.lowSpec ? 1.3 : 2;
+    // Résolution native (1×) sur appareil modeste : c'est le levier de fill-rate
+    // le plus fort (un écran à 3× rend ~9× plus de pixels).
+    this.maxPixelRatio = this.lowSpec ? 1 : 2;
     // MSAA coûte cher en fill-rate : désactivé sur appareil modeste (la basse
     // résolution + le style low-poly rendent l'aliasing peu gênant).
     this.renderer = new WebGLRenderer({ canvas, antialias: !this.lowSpec, powerPreference: "high-performance" });
@@ -104,7 +107,9 @@ export class SceneRenderer {
     // three r185 a déprécié PCFSoftShadowMap (rétrogradé en PCFShadowMap avec un
     // avertissement console). On demande directement PCFShadowMap : même rendu,
     // sans le warning à chaque lancement.
-    this.renderer.shadowMap.type = PCFShadowMap;
+    // Ombres filtrées (PCF) sur desktop ; brutes (Basic, sans filtrage — le moins
+    // cher) sur appareil modeste.
+    this.renderer.shadowMap.type = this.lowSpec ? BasicShadowMap : PCFShadowMap;
 
     const { width, height } = sim.terrain;
     this.rig = new CameraRig(1, width / 2, height / 2);

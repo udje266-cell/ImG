@@ -28,7 +28,8 @@ function startGame(params: URLSearchParams): void {
 
   const canvas = document.getElementById("game") as HTMLCanvasElement;
 
-  const renderer = new SceneRenderer(canvas, sim, { lowSpec: detectLowSpec() });
+  const lowSpec = detectLowSpec();
+  const renderer = new SceneRenderer(canvas, sim, { lowSpec });
   const hud = new Hud();
   const perf = new PerfOverlay(document.getElementById("perf")!, sim);
   document.getElementById("btn-settings")?.addEventListener("click", () => perf.toggle());
@@ -122,7 +123,8 @@ function startGame(params: URLSearchParams): void {
     }
     renderer.enableInhabitants(sim); // villageois procéduraux (tenue par ère)
     void renderer.enableSettlements();
-    if (sim.fauna.count === 0) sim.fauna.populate(80, 12); // herbivores, prédateurs
+    // Moins de faune sur appareil modeste (moins d'instances animées + d'ombres).
+    if (sim.fauna.count === 0) sim.fauna.populate(lowSpec ? 40 : 80, lowSpec ? 6 : 12);
     void renderer.enableFauna(sim, ["models/animals/Horse.glb", "models/animals/Fox.glb"]);
 
     // Caméra : on démarre CENTRÉ sur son peuple. Un monde neuf → gros plan sur

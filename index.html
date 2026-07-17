@@ -44,16 +44,16 @@
       /* --- Ressources (haut-gauche), en pastilles --- */
       #resources {
         position: fixed; top: calc(10px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left));
-        display: flex; flex-direction: column; gap: 6px; user-select: none; pointer-events: none;
+        display: flex; flex-direction: column; align-items: flex-start; gap: 6px; user-select: none; pointer-events: none;
       }
       .pill {
-        display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 8px;
+        display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 8px;
         background: var(--panel); border: 1px solid var(--panel-border); border-radius: 999px;
-        color: var(--text); font-size: 14px; font-weight: 600; min-width: 118px;
+        color: var(--text); font-size: 13px; font-weight: 600;
         box-shadow: 0 2px 8px rgba(0,0,0,0.25);
       }
-      .pill .ico { font-size: 16px; line-height: 1; }
-      .pill .bar { position: relative; flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.15); overflow: hidden; }
+      .pill .ico { font-size: 15px; line-height: 1; }
+      .pill .bar { position: relative; width: 88px; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.15); overflow: hidden; }
       .pill .bar > i { position: absolute; inset: 0; width: 0%; border-radius: 3px; background: var(--accent); transition: width 0.2s; }
       #clock {
         margin-top: 2px; padding: 4px 12px; background: var(--panel); border: 1px solid var(--panel-border);
@@ -149,6 +149,21 @@
         font: 11px/1.4 system-ui, sans-serif; pointer-events: none; user-select: none;
       }
       @media (pointer: coarse) { #help { display: none; } }
+
+      /* --- Écrans compacts / tactiles : HUD plus discret pour laisser voir le jeu --- */
+      @media (max-width: 860px), (pointer: coarse) {
+        #resources { gap: 4px; }
+        .pill { font-size: 11px; padding: 3px 9px 3px 6px; gap: 5px; }
+        .pill .ico { font-size: 12px; }
+        .pill .bar { width: 60px; height: 5px; }
+        #clock, #flash { font-size: 10px; padding: 3px 9px; }
+        #btn-settings { width: 34px; height: 34px; font-size: 16px; }
+        #actionbar { gap: 9px; bottom: calc(8px + env(safe-area-inset-bottom)); }
+        .action > button { width: 46px; height: 46px; font-size: 21px; border-width: 1px; }
+        .action.small > button { width: 36px; height: 36px; font-size: 16px; }
+        .action > .label { font-size: 9px; }
+        #actionbar .sep { margin: 6px 1px; }
+      }
     </style>
   </head>
   <body>
@@ -177,6 +192,7 @@
     <button id="btn-settings" title="Perfs (P)" aria-label="Réglages">⚙️</button>
 
     <div id="actionbar">
+      <div class="action"><button id="tool-hand" title="Main : déplacer la carte (désarme les pouvoirs)">✋</button><span class="label">Main</span></div>
       <div class="action"><button id="tool-raise" title="Élever">⛰️</button><span class="label">Élever</span></div>
       <div class="action"><button id="tool-lower" title="Abaisser">🕳️</button><span class="label">Abaisser</span></div>
       <div class="action"><button id="btn-grimoire" title="Pouvoirs divins">📖</button><span class="label" id="grimoire-label">Pouvoirs</span></div>
