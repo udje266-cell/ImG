@@ -1,5 +1,5 @@
 import type { EventBus } from "../../core/events/EventBus";
-import type { AgentSystem } from "../agents/AgentSystem";
+import { PLAYER_FACTION, type AgentSystem } from "../agents/AgentSystem";
 import type { GameEvents } from "../events";
 import type { PowerId } from "../powers/Power";
 import type { SettlementSystem } from "../society/SettlementSystem";
@@ -37,6 +37,21 @@ const PREACH_RADIUS = 10;
 const PREACH_FERVOUR = 0.05;
 /** Foi passive rayonnée par un temple, par passe. */
 const TEMPLE_FAITH = 2.2;
+/**
+ * Conversion (Étape 2) — trois voies rallient les étrangers à la foi du joueur.
+ * (a) Miracles : conviction gagnée par un étranger témoin d'un prodige du joueur
+ *     (selon la nature — un bienfait séduit plus qu'un courroux, mais la peur
+ *     aussi fait croire). (b) Temples : un temple du joueur rayonne un halo de
+ *     conversion. (c) Missionnaires : un village étranger qui héberge des
+ *     fidèles du joueur (convertis, conjoints, marchands) se laisse gagner.
+ */
+const CONVERT_BY_NATURE: Record<MiracleNature, number> = { bienfait: 0.34, prodige: 0.2, courroux: 0.12 };
+const TEMPLE_CONVERT_RADIUS = 12;
+const TEMPLE_CONVERT = 0.03;
+const MISSION_RADIUS = 8;
+const MISSION_CONVERT = 0.02;
+/** Reflux par passe de la conviction non aboutie (si l'on cesse d'évangéliser). */
+const CONVICTION_KEEP = 0.98;
 
 /** Nature d'un miracle aux yeux des mortels. */
 export type MiracleNature = "bienfait" | "courroux" | "prodige";
@@ -139,6 +154,12 @@ export class ReligionSystem {
     // Plus de témoins → récit plus fort (borné : un village entier suffit).
     cult[nature] += 0.5 + Math.min(1.5, witnesses * 0.1);
     this.checkInstitutions(v);
+
+    // Voie (a) — Conversion par les miracles : les étrangers témoins d'un
+    // prodige du joueur se laissent gagner ; assez de merveilles vues → ils
+    // embrassent sa foi (le village où ils vivent reste à son dieu, mais les
+    // âmes, elles, basculent).
+    this.agents.evangelize(x, y, radius + WITNESS_EXTRA_RADIUS, PLAYER_FACTION, CONVERT_BY_NATURE[nature]);
   }
 
   /** Passe périodique : les récits s'estompent, les prêtres prêchent, les temples rayonnent. */
@@ -158,8 +179,22 @@ export class ReligionSystem {
         // Le prêtre entretient la flamme : la ferveur du village se ravive.
         this.agents.bless(village.x, village.y, PREACH_RADIUS, 0, PREACH_FERVOUR);
       }
-      if (cult.temple) templeFaith += TEMPLE_FAITH;
+      const mine = village.faction === PLAYER_FACTION;
+      // Foi passive du temple : ne revient qu'au JOUEUR, et seulement pour SES
+      // temples (ceux des dieux-IA alimenteront leur propre cagnotte — Étape 3).
+      if (cult.temple && mine) templeFaith += TEMPLE_FAITH;
+      // Voie (b) — Halo de conversion d'un temple du joueur.
+      if (cult.temple && mine) {
+        this.agents.evangelize(village.x, village.y, TEMPLE_CONVERT_RADIUS, PLAYER_FACTION, TEMPLE_CONVERT);
+      }
+      // Voie (c) — Missionnaires : un village étranger où vivent des fidèles du
+      // joueur se laisse peu à peu gagner (le récit se propage de bouche à oreille).
+      if (!mine && this.agents.hasFaithfulNear(PLAYER_FACTION, village.x, village.y, MISSION_RADIUS)) {
+        this.agents.evangelize(village.x, village.y, MISSION_RADIUS, PLAYER_FACTION, MISSION_CONVERT);
+      }
     }
+    // La conviction non aboutie reflue si l'on cesse d'évangéliser (rien n'est acquis d'avance).
+    this.agents.fadeConviction(CONVICTION_KEEP);
     return templeFaith;
   }
 

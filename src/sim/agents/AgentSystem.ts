@@ -124,6 +124,8 @@ export interface AgentSnapshot {
   y: Float32Array;
   goal: Uint8Array;
   profession: Uint8Array;
+  /** Faction suivie (0 = joueur, ≥ 1 = dieu-IA, -1 = non ralliée) — pour teinter la gemme d'allégeance. */
+  allegiance: Int16Array;
 }
 
 const GOAL_CODES: Record<Goal, number> = { forage: 0, rest: 1, wander: 2, worship: 3, work: 4 };
@@ -180,6 +182,13 @@ export class AgentSystem {
    * monde, contrairement au lieu de travail).
    */
   private readonly allegiance: number[] = [];
+  /**
+   * Conviction [0,1] accumulée vers la faction qui évangélise (le joueur, à ce
+   * stade) : montée par les miracles vus, les temples proches et les
+   * missionnaires ; au seuil, l'habitant se **convertit**. Transitoire (progrès
+   * de conversion) — non sérialisé, s'estompe si l'on cesse d'évangéliser.
+   */
+  private readonly conviction: number[] = [];
   private readonly rng: Rng;
   private readonly personaRng: Rng;
   /** Ère courante de la civilisation (pilote les professions). */
@@ -257,6 +266,56 @@ export class AgentSystem {
     let c = 0;
     for (let i = 0; i < this.allegiance.length; i++) if (this.allegiance[i] === faction) c++;
     return c;
+  }
+
+  /** Conviction courante d'un habitant vers la faction évangélisatrice [0,1]. */
+  convictionOf(i: number): number {
+    return this.conviction[i] ?? 0;
+  }
+
+  /**
+   * **Évangélise** un disque au nom de `faction` : chaque habitant qui n'en est
+   * pas déjà (et vivant) gagne `amount` de conviction ; au seuil, il se
+   * **convertit** (allégeance → `faction`, conviction remise à zéro, joie de la
+   * révélation). Retourne le nombre de conversions. Voie commune aux trois
+   * canaux (miracles, temples, missionnaires).
+   */
+  evangelize(cx: number, cy: number, radius: number, faction: number, amount: number): number {
+    const r2 = Math.max(1, radius) ** 2;
+    let converted = 0;
+    for (let i = 0; i < this.px.length; i++) {
+      if (this.allegiance[i] === faction) continue; // déjà rallié à ce dieu
+      const dx = this.px[i]! - cx;
+      const dy = this.py[i]! - cy;
+      if (dx * dx + dy * dy > r2) continue;
+      const c = (this.conviction[i] ?? 0) + amount;
+      if (c >= 1) {
+        this.allegiance[i] = faction;
+        this.conviction[i] = 0;
+        this.joy[i] = Math.min(1, this.joy[i]! + 0.3); // la conversion illumine
+        converted++;
+      } else {
+        this.conviction[i] = c;
+      }
+    }
+    return converted;
+  }
+
+  /** Y a-t-il au moins un fidèle de `faction` dans le disque ? (voie missionnaire). */
+  hasFaithfulNear(faction: number, cx: number, cy: number, radius: number): boolean {
+    const r2 = Math.max(1, radius) ** 2;
+    for (let i = 0; i < this.px.length; i++) {
+      if (this.allegiance[i] !== faction) continue;
+      const dx = this.px[i]! - cx;
+      const dy = this.py[i]! - cy;
+      if (dx * dx + dy * dy <= r2) return true;
+    }
+    return false;
+  }
+
+  /** Estompe la conviction non aboutie (si l'on cesse d'évangéliser, elle reflue). */
+  fadeConviction(keep: number): void {
+    for (let i = 0; i < this.conviction.length; i++) this.conviction[i] = this.conviction[i]! * keep;
   }
 
   /** Marie deux habitants (lien réciproque). */
@@ -419,7 +478,7 @@ export class AgentSystem {
       this.curiosity, this.sociability, this.joy, this.fear, this.anger, this.grief,
       this.spouse, this.parentA, this.parentB, this.targetX, this.targetY, this.homeX,
       this.homeY, this.beckonX, this.beckonY, this.beckonTicks, this.workX, this.workY,
-      this.allegiance,
+      this.allegiance, this.conviction,
     ];
     for (const a of numeric) {
       let k = 0;
@@ -504,6 +563,7 @@ export class AgentSystem {
     // Non rattaché par défaut : la fondation du village (ou l'héritage du parent
     // pour une naissance) fixera l'allégeance juste après.
     this.allegiance.push(UNALIGNED);
+    this.conviction.push(0);
     return i;
   }
 
@@ -794,13 +854,15 @@ export class AgentSystem {
     const y = new Float32Array(n);
     const goal = new Uint8Array(n);
     const profession = new Uint8Array(n);
+    const allegiance = new Int16Array(n);
     for (let i = 0; i < n; i++) {
       x[i] = this.px[i]!;
       y[i] = this.py[i]!;
       goal[i] = GOAL_CODES[this.goal[i]!];
       profession[i] = PROFESSION_CODES[this.profession[i]!];
+      allegiance[i] = this.allegiance[i] ?? UNALIGNED;
     }
-    return { count: n, x, y, goal, profession };
+    return { count: n, x, y, goal, profession, allegiance };
   }
 
   serialize(): {
@@ -862,6 +924,7 @@ export class AgentSystem {
       // Sauvegardes d'avant les factions : allégeance absente → non rattaché,
       // que `SettlementSystem.assignAllegiances` recalera au joueur/village.
       this.allegiance.push(data.allegiance?.[i] ?? UNALIGNED);
+      this.conviction.push(0); // progrès de conversion transitoire : repart de zéro
     }
     this.rng.setState(data.rngState);
     if (data.personaRngState !== undefined) this.personaRng.setState(data.personaRngState);
@@ -874,7 +937,7 @@ export class AgentSystem {
       this.curiosity, this.sociability, this.joy, this.fear, this.anger, this.grief,
       this.spouse, this.parentA, this.parentB, this.targetX, this.targetY, this.homeX,
       this.homeY, this.beckonX, this.beckonY, this.beckonTicks, this.workX, this.workY,
-      this.allegiance,
+      this.allegiance, this.conviction,
     ];
     for (const a of arrays) a.length = 0;
     this.profession.length = 0;

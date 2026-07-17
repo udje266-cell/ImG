@@ -9,14 +9,17 @@ import {
   DynamicDrawUsage,
   InstancedMesh,
   Matrix4,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
+  OctahedronGeometry,
   SphereGeometry,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { PROFESSION_CODES } from "../sim/agents/AgentSystem";
 import { Era } from "../sim/society/EraSystem";
 import type { Simulation } from "../sim/world/Simulation";
+import { factionColor } from "./factionColors";
 import { groundSurfaceAt } from "./TerrainMesh";
 
 /**
@@ -322,6 +325,14 @@ interface Rig {
  */
 export class InhabitantsLayer {
   private readonly rigs: Rig[] = [];
+  /**
+   * Gemme d'allégeance flottant au-dessus de chaque tête, teintée à la couleur
+   * du dieu suivi (or = joueur, teintes franches = dieux-IA, gris = non rallié).
+   * On voit ainsi QUI suit QUI — et une **conversion** se lit à la gemme qui
+   * change de couleur. Non éclairée (couleur pure), lue d'un coup d'œil.
+   */
+  private marks!: InstancedMesh;
+  private readonly markColor = new Color();
   private readonly dummy = new Object3D();
   // Suivi par **index d'agent stable** (i), pas par emplacement de gréement.
   private readonly heading = new Float32Array(MAX_TRACK);
@@ -360,6 +371,16 @@ export class InhabitantsLayer {
         hasLegs: parts.legL !== null,
       });
     }
+    // Gemmes d'allégeance (une par habitant), non éclairées → couleur de faction
+    // pure et lisible. Un seul maillage instancié, indexé par ordre de rendu.
+    const gem = new OctahedronGeometry(0.07, 0);
+    const gemMat = new MeshBasicMaterial({ toneMapped: false });
+    this.marks = new InstancedMesh(gem, gemMat, MAX_TRACK);
+    this.marks.instanceMatrix.setUsage(DynamicDrawUsage);
+    this.marks.frustumCulled = false;
+    this.marks.count = 0;
+    addToScene(this.marks);
+
     sim.bus.on("era:advanced", ({ era }) => this.rebuild(era as Era));
   }
 
@@ -399,6 +420,7 @@ export class InhabitantsLayer {
     const snap = this.sim.agents.snapshot();
     const terrain = this.sim.terrain;
     const counts = new Array(this.rigs.length).fill(0);
+    let mk = 0; // index de gemme d'allégeance (ordre de rendu)
     this.dummy.rotation.order = "YXZ";
 
     for (let i = 0; i < snap.count; i++) {
@@ -487,9 +509,22 @@ export class InhabitantsLayer {
         this.setLimb(rig.legR, idx, m, rig.pivots.legR, legRa);
       }
 
+      // Gemme d'allégeance au-dessus de la tête, teintée à la couleur du dieu
+      // suivi (m déjà consommé par le corps/les membres : on peut réutiliser dummy).
+      this.dummy.position.set(wx, groundY + 1.0, wy);
+      this.dummy.rotation.set(0, timeSeconds * 1.4 + i, 0);
+      this.dummy.scale.setScalar(1);
+      this.dummy.updateMatrix();
+      this.marks.setMatrixAt(mk, this.dummy.matrix);
+      this.marks.setColorAt(mk, this.markColor.set(factionColor(snap.allegiance[i]!)));
+      mk++;
+
       counts[prof] = idx + 1;
     }
     this.primed = true;
+    this.marks.count = mk;
+    this.marks.instanceMatrix.needsUpdate = true;
+    if (this.marks.instanceColor) this.marks.instanceColor.needsUpdate = true;
 
     for (let prof = 0; prof < this.rigs.length; prof++) {
       const rig = this.rigs[prof]!;

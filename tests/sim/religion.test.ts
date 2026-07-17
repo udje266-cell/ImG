@@ -66,6 +66,28 @@ describe("ReligionSystem — témoins et mémoire (docs/GDD.md §6)", () => {
   });
 });
 
+describe("ReligionSystem — conversion (Étape 2)", () => {
+  it("voie des miracles : les étrangers témoins d'un prodige du joueur se rallient", () => {
+    const sim = godWorld();
+    // Un village qui n'est pas au joueur (dieu-IA).
+    const ai = sim.settlements.villages.findIndex((v) => v.faction !== 0);
+    expect(ai).toBeGreaterThanOrEqual(0);
+    const v = sim.settlements.villages[ai]!;
+    const before = sim.agents.faithfulCount(0);
+    // Multiplie les bienfaits sur ce village étranger → ses âmes basculent.
+    for (let i = 0; i < 10; i++) {
+      sim.bus.emit("intent:invokePower", {
+        power: "benediction",
+        x: Math.round(v.x),
+        y: Math.round(v.y),
+        radius: 8,
+      } as never);
+      sim.step();
+    }
+    expect(sim.agents.faithfulCount(0)).toBeGreaterThan(before);
+  });
+});
+
 describe("ReligionSystem — prêtres et temples", () => {
   it("assez de récits → un prêtre s'élève, puis un temple (événements émis)", () => {
     const sim = godWorld();

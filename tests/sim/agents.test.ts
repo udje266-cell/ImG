@@ -85,6 +85,42 @@ describe("AgentSystem (docs/GDD.md §4)", () => {
     expect(sim.faith.current).toBeGreaterThan(before);
   });
 
+  it("evangelize accumule la conviction puis convertit au seuil (pas les siens)", () => {
+    const a = makeAgents();
+    const mine = a.spawn(10, 10); // fidèle du joueur (faction 0)
+    a.setAllegiance(mine, 0);
+    const foreign = a.spawn(10.5, 10); // fidèle d'un dieu-IA (faction 1)
+    a.setAllegiance(foreign, 1);
+    // Trop peu de conviction : personne ne bascule encore.
+    expect(a.evangelize(10, 10, 3, 0, 0.3)).toBe(0);
+    expect(a.allegianceOf(foreign)).toBe(1);
+    expect(a.convictionOf(foreign)).toBeCloseTo(0.3, 5);
+    // On pousse au-delà du seuil : l'étranger se convertit, pas le fidèle déjà acquis.
+    const converted = a.evangelize(10, 10, 3, 0, 0.8);
+    expect(converted).toBe(1);
+    expect(a.allegianceOf(foreign)).toBe(0);
+    expect(a.allegianceOf(mine)).toBe(0);
+  });
+
+  it("hasFaithfulNear repère un fidèle d'une faction dans un rayon", () => {
+    const a = makeAgents();
+    const f = a.spawn(20, 20);
+    a.setAllegiance(f, 0);
+    expect(a.hasFaithfulNear(0, 20, 20, 2)).toBe(true);
+    expect(a.hasFaithfulNear(1, 20, 20, 2)).toBe(false); // aucun fidèle du dieu-IA ici
+    expect(a.hasFaithfulNear(0, 40, 40, 2)).toBe(false); // trop loin
+  });
+
+  it("fadeConviction fait refluer une conversion non aboutie", () => {
+    const a = makeAgents();
+    const f = a.spawn(5, 5);
+    a.setAllegiance(f, 1);
+    a.evangelize(5, 5, 2, 0, 0.5);
+    expect(a.convictionOf(f)).toBeCloseTo(0.5, 5);
+    a.fadeConviction(0.5);
+    expect(a.convictionOf(f)).toBeCloseTo(0.25, 5);
+  });
+
   it("serialize/restore round-trips the population", () => {
     const a = makeAgents();
     a.populate(25);

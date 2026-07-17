@@ -20,6 +20,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { Era } from "../sim/society/EraSystem";
 import type { Simulation } from "../sim/world/Simulation";
 import type { BuildingModelSet } from "./BuildingModels";
+import { factionColor } from "./factionColors";
 import { groundSurfaceAt } from "./TerrainMesh";
 
 /**
@@ -386,16 +387,6 @@ function makeFlagGeometry(): BufferGeometry {
   paint(knob, 0xffffff);
   parts.push(knob);
   return mergeGeometries(parts, false)!;
-}
-
-/**
- * Couleur emblématique de chaque faction (dieu). La faction 0 — le JOUEUR —
- * arbore l'or divin (comme la Foi) ; les dieux-IA rivaux prennent des teintes
- * franches et distinctes.
- */
-const FACTION_COLORS = [0xf2c14e, 0xc0392b, 0x2a9d8f, 0x8e44ad, 0xe67e22, 0x2980b9];
-function factionColor(faction: number): number {
-  return FACTION_COLORS[((faction % FACTION_COLORS.length) + FACTION_COLORS.length) % FACTION_COLORS.length]!;
 }
 
 /** Feu de camp : rondins croisés + cercle de pierres du foyer. */
