@@ -40,6 +40,12 @@ const MIN_COMBAT_POP = 8;
  * que la rancœur ne remonte (les guerres restent occasionnelles).
  */
 const POST_RAID_TENSION = -0.6;
+/**
+ * Écrasement : au-delà de ce rapport de force, le vainqueur **annexe** le
+ * vaincu — le village conquis passe à son dieu et ses habitants embrassent la
+ * foi du vainqueur (on ne prend un village que par une victoire décisive).
+ */
+const ANNEX_STRENGTH_RATIO = 1.6;
 
 export class WarSystem {
   /** Tension par paire de villages (matrice triangulaire, éphémère). */
@@ -130,5 +136,19 @@ export class WarSystem {
 
     const victor = sA >= sB ? a : b;
     this.bus.emit("war:raid", { attacker: a, defender: b, victor, casualties: killed });
+
+    // Annexion : une victoire écrasante entre villages de dieux différents fait
+    // passer le vaincu sous la bannière du vainqueur — ses âmes s'y rallient.
+    const loser = victor === a ? b : a;
+    const vVictor = villages[victor]!;
+    const vLoser = villages[loser]!;
+    const sVictor = victor === a ? sA : sB;
+    const sLoser = victor === a ? sB : sA;
+    if (vVictor.faction !== vLoser.faction && sVictor >= sLoser * ANNEX_STRENGTH_RATIO + 0.5) {
+      vLoser.faction = vVictor.faction;
+      this.agents.convertNear(vLoser.x, vLoser.y, VILLAGE_RADIUS, vVictor.faction);
+      this.bus.emit("war:annexed", { village: loser, faction: vVictor.faction });
+      this.bus.emit("settlements:updated", {}); // la bannière du vaincu change de couleur
+    }
   }
 }

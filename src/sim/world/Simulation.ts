@@ -34,6 +34,7 @@ import { SettlementSystem } from "../society/SettlementSystem";
 import { TRADE_INTERVAL, TradeSystem } from "../society/TradeSystem";
 import { VOYAGE_INTERVAL, VoyageSystem } from "../society/VoyageSystem";
 import { WAR_INTERVAL, WarSystem } from "../society/WarSystem";
+import { RIVAL_GOD_INTERVAL, RivalGodSystem } from "../society/RivalGodSystem";
 import { FaunaSystem } from "../ecology/FaunaSystem";
 import { FLORA_INTERVAL, FloraSystem } from "../ecology/FloraSystem";
 import { seasonalOffset } from "../weather/seasons";
@@ -79,6 +80,7 @@ export class Simulation {
   readonly era: EraSystem;
   readonly divineMemory: DivineMemory;
   readonly war: WarSystem;
+  readonly rivalGods: RivalGodSystem;
   readonly trade: TradeSystem;
   readonly voyage: VoyageSystem;
   /** Config effective du monde — nécessaire à la sauvegarde (seed + deltas). */
@@ -128,6 +130,7 @@ export class Simulation {
     this.era = new EraSystem(this.bus);
     this.divineMemory = new DivineMemory(this.bus, this.clock);
     this.war = new WarSystem(this.settlements, this.agents, this.bus, this.rng);
+    this.rivalGods = new RivalGodSystem(this.settlements, this.agents);
     this.trade = new TradeSystem(this.settlements, this.agents, this.war, this.bus);
     this.voyage = new VoyageSystem(this.bus);
     this.applySeasonalOffset();
@@ -210,6 +213,13 @@ export class Simulation {
       id: "war",
       interval: WAR_INTERVAL,
       update: (sim) => sim.war.update(),
+    });
+    // Dieux-IA : chaque faction rivale amasse sa propre Foi et, quand elle en a
+    // assez, ravive et reconquiert ses ouailles — la conversion est une lutte.
+    this.scheduler.add({
+      id: "rivalGods",
+      interval: RIVAL_GOD_INTERVAL,
+      update: (sim) => sim.rivalGods.update(),
     });
     // Commerce : les villages voisins en paix ouvrent des routes ; la
     // prospérité échangée ravitaille les peuples et rayonne une Foi passive.

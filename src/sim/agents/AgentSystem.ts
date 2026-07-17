@@ -301,6 +301,27 @@ export class AgentSystem {
     return converted;
   }
 
+  /**
+   * Ralliement **immédiat** d'un disque à une faction (annexion après une
+   * guerre : les vaincus embrassent le dieu du vainqueur). Retourne le nombre
+   * d'âmes retournées. Contrairement à `evangelize`, pas de seuil : la défaite
+   * impose la foi d'un coup.
+   */
+  convertNear(cx: number, cy: number, radius: number, faction: number): number {
+    const r2 = Math.max(1, radius) ** 2;
+    let c = 0;
+    for (let i = 0; i < this.px.length; i++) {
+      if (this.allegiance[i] === faction) continue;
+      const dx = this.px[i]! - cx;
+      const dy = this.py[i]! - cy;
+      if (dx * dx + dy * dy > r2) continue;
+      this.allegiance[i] = faction;
+      this.conviction[i] = 0;
+      c++;
+    }
+    return c;
+  }
+
   /** Y a-t-il au moins un fidèle de `faction` dans le disque ? (voie missionnaire). */
   hasFaithfulNear(faction: number, cx: number, cy: number, radius: number): boolean {
     const r2 = Math.max(1, radius) ** 2;

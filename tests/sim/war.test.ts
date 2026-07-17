@@ -8,6 +8,7 @@ import { TerrainGrid } from "../../src/sim/terrain/TerrainGrid";
 import { Biome } from "../../src/sim/worldgen/biomes";
 import type { SettlementSystem } from "../../src/sim/society/SettlementSystem";
 import { WarSystem } from "../../src/sim/society/WarSystem";
+import { RivalGodSystem } from "../../src/sim/society/RivalGodSystem";
 
 function greenGrid(): TerrainGrid {
   const g = new TerrainGrid(48, 48, 0.5);
@@ -102,6 +103,46 @@ describe("WarSystem — guerres entre villages (cahier des charges §5)", () => 
     for (let i = 0; i < 50; i++) war.update();
     expect(raids).toBe(0);
     expect(war.tensionBetween(0, 1)).toBe(0);
+  });
+
+  it("une victoire écrasante annexe le village vaincu (Étape 3)", () => {
+    const g = greenGrid();
+    const rng = new Rng(3);
+    const bus = new EventBus<GameEvents>();
+    const agents = new AgentSystem(g, new FloraSystem(g, rng), rng, bus);
+    bus.emit("era:advanced", { era: 2, name: "Âge du Fer", politics: "Royaume" });
+    // Village fort au joueur (faction 0, 30 âmes) écrasant un village-IA (faction 1, 8 âmes).
+    for (let i = 0; i < 30; i++) agents.setAllegiance(agents.spawn(10 + (i % 6) * 0.3, 10 + Math.floor(i / 6) * 0.3), 0);
+    for (let i = 0; i < 8; i++) agents.setAllegiance(agents.spawn(28 + (i % 3) * 0.3, 10 + Math.floor(i / 3) * 0.3), 1);
+    const villages = [
+      { x: 10, y: 10, population: 30, huts: 0, faction: 0 },
+      { x: 28, y: 10, population: 8, huts: 0, faction: 1 },
+    ];
+    const settlements = { villages } as unknown as SettlementSystem;
+    const war = new WarSystem(settlements, agents, bus, rng);
+    let annexed = 0;
+    bus.on("war:annexed", () => annexed++);
+    for (let i = 0; i < 120 && villages[1]!.faction === 1; i++) war.update();
+    expect(annexed).toBeGreaterThan(0);
+    expect(villages[1]!.faction).toBe(0); // le village vaincu passe au vainqueur
+    // Les survivants du village conquis suivent désormais le dieu du vainqueur.
+    expect(agents.faithfulCount(0)).toBeGreaterThan(30);
+  });
+
+  it("un dieu-IA reconquiert les âmes que le joueur lui a converties (Étape 3)", () => {
+    const g = greenGrid();
+    const rng = new Rng(9);
+    const bus = new EventBus<GameEvents>();
+    const agents = new AgentSystem(g, new FloraSystem(g, rng), rng, bus);
+    // 12 âmes autour d'un village-IA : 8 restées fidèles au dieu-IA, 4 ravies par le joueur.
+    for (let i = 0; i < 12; i++) agents.setAllegiance(agents.spawn(20 + (i % 4) * 0.3, 20 + Math.floor(i / 4) * 0.3), i < 8 ? 1 : 0);
+    agents.bless(20, 20, 6, 0, 2.5); // ravive la ferveur → le dieu-IA amasse vite sa Foi
+    const villages = [{ x: 20, y: 20, population: 12, huts: 0, faction: 1 }];
+    const settlements = { villages } as unknown as SettlementSystem;
+    const gods = new RivalGodSystem(settlements, agents);
+    const before = agents.faithfulCount(1); // 8 fidèles au dieu-IA
+    for (let i = 0; i < 1500; i++) gods.update();
+    expect(agents.faithfulCount(1)).toBeGreaterThan(before); // il a repris des âmes au joueur
   });
 
   it("le culling recolle les liens de famille (pas d'index fantôme)", () => {
