@@ -1,4 +1,5 @@
 import type { Season } from "../core/time/GameClock";
+import { ERA_INFO, LAST_ERA } from "../sim/society/EraSystem";
 import type { Simulation } from "../sim/world/Simulation";
 
 /** Time control state displayed by the HUD (provided by the app layer). */
@@ -28,6 +29,9 @@ export class Hud {
   private readonly sparkBar: HTMLElement;
   private readonly devotionVal: HTMLElement;
   private readonly populationVal: HTMLElement;
+  private readonly eraIco: HTMLElement;
+  private readonly eraBar: HTMLElement;
+  private readonly eraVal: HTMLElement;
   private readonly clock: HTMLElement;
   private readonly flashEl: HTMLElement;
   private flashUntil = 0;
@@ -39,6 +43,9 @@ export class Hud {
     this.sparkBar = root.getElementById("spark-bar")!;
     this.devotionVal = root.getElementById("devotion-val")!;
     this.populationVal = root.getElementById("population-val")!;
+    this.eraIco = root.getElementById("era-ico")!;
+    this.eraBar = root.getElementById("era-bar")!;
+    this.eraVal = root.getElementById("era-val")!;
     this.clock = root.getElementById("clock")!;
     this.flashEl = root.getElementById("flash")!;
   }
@@ -64,6 +71,17 @@ export class Hud {
     this.devotionVal.textContent = String(Math.floor(sim.progression.devotion));
     this.populationVal.textContent = String(sim.agents.count);
     const era = sim.era.info;
+    // Jauge de Savoir vers l'ère suivante : on voit venir le changement d'âge.
+    this.eraIco.textContent = era.icon;
+    const eraIdx = sim.era.era;
+    if (eraIdx >= LAST_ERA) {
+      this.eraBar.style.width = "100%";
+      this.eraVal.textContent = "Apogée";
+    } else {
+      const pct = Math.round(sim.era.progress * 100);
+      this.eraBar.style.width = `${pct}%`;
+      this.eraVal.textContent = `${pct}% → ${ERA_INFO[eraIdx + 1]!.name}`;
+    }
     const voyage = sim.voyage;
     const island = voyage.island > 0 ? ` · Île ${voyage.island + 1}` : "";
     let ship = "";
