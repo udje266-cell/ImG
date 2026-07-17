@@ -1,4 +1,5 @@
 import { SceneRenderer } from "../render/SceneRenderer";
+import { PLAYER_FACTION } from "../sim/agents/AgentSystem";
 import { POWER_CATALOG } from "../sim/powers/catalog";
 import { loadSimulation, serializeSimulation, type AnySaveData } from "../sim/save/save";
 import { sailToNextIsland, Simulation } from "../sim/world/Simulation";
@@ -76,6 +77,11 @@ function boot(): void {
   });
   sim.bus.on("war:raid", ({ victor, casualties }) => {
     if (casualties > 0) hud.flash(`Raid : ${casualties} mort${casualties > 1 ? "s" : ""} — le village ${victor + 1} l'emporte`);
+  });
+  // Annexion : un village entier change de dieu — victoire éclatante ou revers.
+  sim.bus.on("war:annexed", ({ village, faction }) => {
+    if (faction === PLAYER_FACTION) hud.flash(`🏴 Le village ${village + 1} passe sous ta bannière !`);
+    else hud.flash(`🏴 Un dieu rival annexe le village ${village + 1}…`);
   });
   sim.bus.on("trade:established", ({ a, b }) => {
     hud.flash(`🤝 Route commerciale : village ${a + 1} ⇄ village ${b + 1}`);
